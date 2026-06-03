@@ -5,6 +5,7 @@ import TreeVisualizer from './tree-vis'
 import ListVisualizer from './list-vis'
 import GridVisualizer from './grid-vis'
 import PointVisualizer from './point-vis'
+import GraphVisualizer from './graph-vis'
 import CodePanel from './code-panel'
 import ParamPanel from './param-panel'
 
@@ -169,6 +170,7 @@ function VisualizerSwitch({ type, scene }: { type: VisualizerType; scene: Scene 
     case 'list':  return <ListVisualizer scene={scene} />
     case 'grid':  return <GridVisualizer scene={scene} />
     case 'point': return <PointVisualizer scene={scene} />
+    case 'graph': return <GraphVisualizer scene={scene} />
     default:      return <BarVisualizer scene={scene} />
   }
 }

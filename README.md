@@ -11,12 +11,13 @@
 [![Vite](https://img.shields.io/badge/Vite-5-646cff)](https://vitejs.dev/)
 [![pnpm](https://img.shields.io/badge/pnpm-monorepo-orange)](https://pnpm.io/)
 [![Live](https://img.shields.io/badge/Live-omnialgoviz.up.railway.app-0B0D0E)](https://omnialgoviz.up.railway.app)
+[![CI](https://github.com/linjie20091027-a11y/OmniAlgoViz/actions/workflows/ci.yml/badge.svg)](https://github.com/linjie20091027-a11y/OmniAlgoViz/actions)
 
 ---
 
 ## 特性 / Features
 
-- **5 种可视化引擎 / 5 Visualization Engines**——柱状图 Bar（数组 Array）、树形图 Tree（BST/堆 Heap/线段树 SegTree/Trie）、链表图 List（栈 Stack/队列 Queue/哈希链 Hash Chain）、二维网格 Grid（DP 表）、坐标点 Point（几何 Geometry）
+- **6 种可视化引擎 / 6 Visualization Engines**——柱状图 Bar（数组 Array）、树形图 Tree（BST/堆 Heap/线段树 SegTree/Trie）、链表图 List（栈 Stack/队列 Queue/哈希链 Hash Chain）、网格 Grid（DP 表）、坐标点 Point（几何 Geometry）、图 Graph（BFS/DFS/Dijkstra）
 - **Python + C++ 双代码 / Dual Code Support**——每个算法同时提供两种语言实现，Shiki 行号同步高亮 / Each algorithm includes Python & C++ with real-time line-sync highlighting
 - **逐步演示 / Step-by-Step Playback**——播放 ▶ / 暂停 ⏸ / 步进 ⏭ / 调速 ⏩，每步有详细中文说明 / Play, pause, step, speed control with detailed descriptions
 - **算法注册系统 / Auto-Registry**——`import.meta.glob` 自动扫描，添加新算法零路由配置 / Auto-discover algorithms, zero routing config

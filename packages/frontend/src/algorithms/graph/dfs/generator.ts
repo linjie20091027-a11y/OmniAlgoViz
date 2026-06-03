@@ -1,116 +1,123 @@
-import { Scene, BarObject, COLORS } from '@vsa/shared'
+import type { Scene, GraphNodeObject, GraphEdgeObject } from '@vsa/shared'
+import { COLORS } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
-}
+export default function* dfsGenerator(params: { size: number }): Generator<Scene> {
+  const n = Math.min(params.size, 10)
+  const adj: number[][] = Array.from({ length: n }, () => [])
 
-export default function* generate(): Generator<Scene> {
-  const size = 6
-  // 图邻接表: 0-1,0-2, 1-3,1-4, 2-4, 3-5, 4-5
-  const graph: number[][] = [
-    [1, 2],
-    [0, 3, 4],
-    [0, 4],
-    [1, 5],
-    [1, 2, 5],
-    [3, 4],
-  ]
+  // 构建随机连通图
+  for (let i = 1; i < n; i++) {
+    const parent = Math.floor(Math.random() * i)
+    adj[parent].push(i)
+    adj[i].push(parent)
+  }
+  for (let i = 0; i < Math.floor(n * 1.5); i++) {
+    const u = Math.floor(Math.random() * n)
+    const v = Math.floor(Math.random() * n)
+    if (u !== v && !adj[u].includes(v)) {
+      adj[u].push(v)
+      adj[v].push(u)
+    }
+  }
 
-  let visited: boolean[] = Array(size).fill(false)
-  let order: number[] = Array(size).fill(-1)
-  let time = 0
+  const edgeSet = new Set<string>()
+  const allEdges: GraphEdgeObject[] = []
+  for (let u = 0; u < n; u++) {
+    for (const v of adj[u]) {
+      const key = u < v ? `${u}-${v}` : `${v}-${u}`
+      if (!edgeSet.has(key)) {
+        edgeSet.add(key)
+        allEdges.push({ kind: 'graphEdge', id: `e-${u}-${v}`, from: `n-${u}`, to: `n-${v}`, weight: 1, directed: false, color: '#cbd5e1' })
+      }
+    }
+  }
+
+  function mkNodes(states: Record<number, string>): GraphNodeObject[] {
+    return Array.from({ length: n }, (_, i) => ({
+      kind: 'graphNode' as const,
+      id: `n-${i}`,
+      label: String(i),
+      color: states[i] || COLORS.default,
+    }))
+  }
+
+  const visited: boolean[] = new Array(n).fill(false)
+  const entryTime: number[] = new Array(n).fill(-1)
+  const exitTime: number[] = new Array(n).fill(-1)
+  let timer = 0
   const stack: number[] = []
 
+  // 节点 0 入栈，开始 DFS
+  stack.push(0)
+
   yield {
-    description: '初始化：visited 数组全部置为 false，发现顺序（order）全部置为 -1',
+    objects: [...mkNodes({ 0: COLORS.sorted }), ...allEdges],
     codeLine: 1,
-    objects: order.map((v, i) => mkBar(`n${i}`, 0, i, '#6b7280', `节点${i}`)),
+    description: `DFS 从节点 0 开始，栈: [0]`,
   }
 
-  // DFS from node 0
-  function* dfs(u: number): Generator<Scene> {
-    visited[u] = true
-    order[u] = time++
-    stack.push(u)
+  while (stack.length > 0) {
+    const u = stack[stack.length - 1]
 
-    yield {
-      description: `访问节点 ${u}，标记为已访问，发现顺序 = ${order[u]}。当前栈：[${stack.join(', ')}]`,
-      codeLine: 2,
-      objects: order.map((v, i) =>
-        mkBar(`n${i}`, v === -1 ? 0 : v + 1, i,
-          i === u ? '#ef4444' : visited[i] ? '#3b82f6' : '#6b7280',
-          `节点${i}`)
-      ),
-    }
+    if (!visited[u]) {
+      visited[u] = true
+      entryTime[u] = timer++
 
-    for (const v of graph[u]) {
-      if (!visited[v]) {
-        yield {
-          description: `从节点 ${u} 深入，发现未访问的邻居节点 ${v}`,
-          codeLine: 3,
-          objects: order.map((ov, i) =>
-            mkBar(`n${i}`, ov === -1 ? 0 : ov + 1, i,
-              i === v ? '#f59e0b' : i === u ? '#ef4444' : visited[i] ? '#3b82f6' : '#6b7280',
-              `节点${i}`)
-          ),
-        }
-
-        yield* dfs(v)
-
-        yield {
-          description: `节点 ${v} 及其子树遍历完毕，回溯到节点 ${u}`,
-          codeLine: 4,
-          objects: order.map((ov, i) =>
-            mkBar(`n${i}`, ov === -1 ? 0 : ov + 1, i,
-              i === u ? '#ef4444' : visited[i] ? '#10b981' : '#6b7280',
-              `节点${i}`)
-          ),
-        }
-      } else {
-        yield {
-          description: `节点 ${v} 已经被访问过（顺序 = ${order[v]}），跳过`,
-          codeLine: 5,
-          objects: order.map((ov, i) =>
-            mkBar(`n${i}`, ov === -1 ? 0 : ov + 1, i,
-              visited[i] ? '#3b82f6' : '#6b7280', `节点${i}`)
-          ),
-        }
-      }
-    }
-
-    stack.pop()
-    yield {
-      description: `节点 ${u} 完成，从栈中弹出。当前栈：[${stack.join(', ') || '空'}]`,
-      codeLine: 6,
-      objects: order.map((ov, i) =>
-        mkBar(`n${i}`, ov === -1 ? 0 : ov + 1, i,
-          visited[i] ? '#10b981' : '#6b7280', `节点${i}`)
-      ),
-    }
-  }
-
-  yield* dfs(0)
-
-  // Check for remaining unvisited nodes
-  for (let i = 1; i < size; i++) {
-    if (!visited[i]) {
       yield {
-        description: `发现未访问的节点 ${i}（可能是不连通分量），继续 DFS`,
-        codeLine: 7,
-        objects: order.map((ov, j) =>
-          mkBar(`n${j}`, ov === -1 ? 0 : ov + 1, j,
-            j === i ? '#f59e0b' : visited[j] ? '#10b981' : '#6b7280', `节点${j}`)
-        ),
+        objects: [
+          ...mkNodes({ [u]: COLORS.highlight, ...Object.fromEntries(stack.map(s => [s, COLORS.pivot])) }),
+          ...allEdges,
+        ],
+        codeLine: 2,
+        description: `访问节点 ${u}，发现顺序 = ${entryTime[u]}，栈: [${stack.join(', ')}]`,
       }
-      yield* dfs(i)
+    }
+
+    // 寻找下一个未访问的邻居
+    let nextV = -1
+    for (const v of adj[u]) {
+      if (!visited[v]) {
+        nextV = v
+        break
+      }
+    }
+
+    if (nextV !== -1) {
+      stack.push(nextV)
+      yield {
+        objects: [
+          ...mkNodes({ [u]: COLORS.comparing, [nextV]: COLORS.highlight, ...Object.fromEntries(stack.slice(0, -1).map(s => [s, COLORS.pivot])) }),
+          ...allEdges.map(e =>
+            (e.from === `n-${u}` && e.to === `n-${nextV}`) || (e.from === `n-${nextV}` && e.to === `n-${u}`)
+              ? { ...e, color: COLORS.highlight }
+              : e
+          ),
+        ],
+        codeLine: 3,
+        description: `从节点 ${u} 深入，发现未访问邻居 ${nextV}，入栈`,
+      }
+    } else {
+      // 没有未访问邻居，回溯
+      stack.pop()
+      exitTime[u] = timer++
+
+      yield {
+        objects: [
+          ...mkNodes({ [u]: COLORS.sorted, ...Object.fromEntries(stack.map(s => [s, COLORS.pivot])) }),
+          ...allEdges,
+        ],
+        codeLine: 4,
+        description: `节点 ${u} 回溯完成（退出顺序 = ${exitTime[u]}），出栈。栈: [${stack.join(', ') || '空'}]`,
+      }
     }
   }
 
   yield {
-    description: 'DFS 完成！所有节点遍历完毕，order 数组记录了各节点的发现顺序',
-    codeLine: 8,
-    objects: order.map((v, i) =>
-      mkBar(`n${i}`, v + 1, i, '#10b981', `节点${i}`)
-    ),
+    objects: [
+      ...mkNodes(Object.fromEntries(Array.from({ length: n }, (_, i) => [i, COLORS.sorted]))),
+      ...allEdges,
+    ],
+    codeLine: 6,
+    description: `DFS 完成！共访问 ${n} 个节点`,
   }
 }

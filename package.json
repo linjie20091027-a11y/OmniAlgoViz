@@ -6,6 +6,10 @@
     "dev": "pnpm --filter @vsa/frontend dev",
     "build": "pnpm --filter @vsa/frontend build",
     "start": "node server.js",
+    "lint": "eslint packages --ext .ts,.tsx",
+    "format": "prettier --write \"packages/**/*.{ts,tsx,css,json}\"",
+    "format:check": "prettier --check \"packages/**/*.{ts,tsx,css,json}\"",
+    "check": "pnpm lint && pnpm --filter @vsa/frontend exec tsc --noEmit",
     "backend": "pnpm --filter @vsa/backend dev"
   },
   "dependencies": {

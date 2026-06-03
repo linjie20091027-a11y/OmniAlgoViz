@@ -1,106 +1,157 @@
-import { Scene, BarObject, COLORS } from '@vsa/shared'
+import type { Scene, GraphNodeObject, GraphEdgeObject } from '@vsa/shared'
+import { COLORS } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
-}
+export default function* primGenerator(params: { size: number }): Generator<Scene> {
+  const n = Math.min(params.size, 10)
+  const adj: number[][] = Array.from({ length: n }, () => [])
+  const weight: Record<string, number> = {}
 
-export default function* generate(): Generator<Scene> {
-  const size = 6
-  const INF = 999
-  // 加权无向图邻接表: [target, weight]
-  const graph: [number, number][][] = [
-    [[1, 4], [2, 3]],
-    [[0, 4], [2, 1], [3, 2]],
-    [[0, 3], [1, 1], [3, 4], [4, 3]],
-    [[1, 2], [2, 4], [4, 2], [5, 1]],
-    [[2, 3], [3, 2], [5, 6]],
-    [[3, 1], [4, 6]],
-  ]
-
-  let dist: number[] = Array(size).fill(INF)
-  let visited: boolean[] = Array(size).fill(false)
-  let parent: number[] = Array(size).fill(-1)
-
-  yield {
-    description: '初始化：dist 数组全部设为 INF，visited 全部为 false。任选节点 0 作为起始点',
-    codeLine: 1,
-    objects: dist.map((_, i) => mkBar(`n${i}`, 0, i, '#6b7280', `节点${i}`)),
+  // 构建随机加权连通图
+  for (let i = 1; i < n; i++) {
+    const parent = Math.floor(Math.random() * i)
+    adj[parent].push(i)
+    adj[i].push(parent)
+    const wkey = parent < i ? `${parent}-${i}` : `${i}-${parent}`
+    weight[wkey] = Math.floor(Math.random() * 9) + 1
+  }
+  for (let i = 0; i < Math.floor(n * 1.5); i++) {
+    const u = Math.floor(Math.random() * n)
+    const v = Math.floor(Math.random() * n)
+    if (u !== v && !adj[u].includes(v)) {
+      adj[u].push(v)
+      adj[v].push(u)
+      const wkey = u < v ? `${u}-${v}` : `${v}-${u}`
+      weight[wkey] = Math.floor(Math.random() * 9) + 1
+    }
   }
 
-  dist[0] = 0
-
-  yield {
-    description: '设置起始节点 0 的 key 值为 0，开始构建 MST',
-    codeLine: 2,
-    objects: dist.map((d, i) =>
-      mkBar(`n${i}`, d === INF ? 0 : d * 3 + 1, i,
-        i === 0 ? '#ef4444' : '#6b7280', `节点${i}`)
-    ),
-  }
-
-  for (let iter = 0; iter < size; iter++) {
-    // Find unvisited node with minimum key
-    let u = -1
-    let minKey = INF
-    for (let i = 0; i < size; i++) {
-      if (!visited[i] && dist[i] < minKey) {
-        u = i
-        minKey = dist[i]
+  const edgeSet = new Set<string>()
+  const allEdges: GraphEdgeObject[] = []
+  for (let u = 0; u < n; u++) {
+    for (const v of adj[u]) {
+      const key = u < v ? `${u}-${v}` : `${v}-${u}`
+      if (!edgeSet.has(key)) {
+        edgeSet.add(key)
+        allEdges.push({
+          kind: 'graphEdge', id: `e-${u}-${v}`, from: `n-${u}`, to: `n-${v}`,
+          weight: weight[key], directed: false, color: '#cbd5e1',
+        })
       }
     }
+  }
 
+  function mkNodes(states: Record<number, string>): GraphNodeObject[] {
+    return Array.from({ length: n }, (_, i) => {
+      const k = key[i]
+      const lbl = k === INF ? `${i}(INF)` : `${i}(${k})`
+      return {
+        kind: 'graphNode' as const,
+        id: `n-${i}`,
+        label: lbl,
+        color: states[i] || COLORS.default,
+      }
+    })
+  }
+
+  function getEdgeId(a: number, b: number): string {
+    return `e-${a}-${b}`
+  }
+
+  const INF = 999
+  const key: number[] = new Array(n).fill(INF)
+  const inMST: boolean[] = new Array(n).fill(false)
+  const parent: number[] = new Array(n).fill(-1)
+  key[0] = 0
+  const mstEdgeKeys: Set<string> = new Set()
+
+  yield {
+    objects: [...mkNodes({ 0: COLORS.sorted }), ...allEdges],
+    codeLine: 1,
+    description: `初始化：任选节点 0 作为 MST 起点，key[0]=0，其余 key=INF`,
+  }
+
+  for (let iter = 0; iter < n; iter++) {
+    let u = -1
+    let minKey = INF
+    for (let i = 0; i < n; i++) {
+      if (!inMST[i] && key[i] < minKey) {
+        u = i
+        minKey = key[i]
+      }
+    }
     if (u === -1) break
 
     yield {
-      description: `从未访问节点中选择 key 最小的：节点 ${u}（key = ${minKey}）`,
+      objects: [
+        ...mkNodes({ [u]: COLORS.comparing }),
+        ...allEdges.map(e =>
+          (mstEdgeKeys.has(getEdgeId(e.from === `n-${u}` ? u : parseInt(e.from.slice(2)), e.to === `n-${u}` ? u : parseInt(e.to.slice(2)))))
+            ? { ...e, color: COLORS.sorted }
+            : e
+        ),
+      ],
       codeLine: 3,
-      objects: dist.map((d, i) =>
-        mkBar(`n${i}`, d === INF ? 0 : d * 3 + 1, i,
-          i === u ? '#f59e0b' : visited[i] ? '#10b981' : '#3b82f6',
-          `节点${i}`)
-      ),
+      description: `选择 key 最小的未加入节点：${u}（key=${minKey}），将其加入 MST`,
     }
 
-    visited[u] = true
-
-    const p = parent[u]
-    const action = p === -1 ? '作为 MST 起点加入' : `将边 (${p}, ${u}) 权重 ${dist[u]} 加入 MST`
+    inMST[u] = true
+    if (parent[u] !== -1) {
+      const p = parent[u]
+      mstEdgeKeys.add(getEdgeId(u, p))
+      mstEdgeKeys.add(getEdgeId(p, u))
+    }
 
     yield {
-      description: `将节点 ${u} ${action}，标记为已访问`,
+      objects: [
+        ...mkNodes(Object.fromEntries(Array.from({ length: n }, (_, i) => inMST[i] ? [i, COLORS.sorted] : [i, null] as const).filter(([, v]) => v !== null) as [number, string][])),
+        ...allEdges.map(e => {
+          const fromIdx = parseInt(e.from.slice(2))
+          const toIdx = parseInt(e.to.slice(2))
+          return mstEdgeKeys.has(getEdgeId(fromIdx, toIdx)) ? { ...e, color: COLORS.sorted } : e
+        }),
+      ],
       codeLine: 4,
-      objects: dist.map((d, i) =>
-        mkBar(`n${i}`, d === INF ? 0 : d * 3 + 1, i,
-          visited[i] ? '#10b981' : '#3b82f6',
-          `节点${i}`)
-      ),
+      description: parent[u] === -1 ? `节点 ${u} 作为 MST 起点` : `将边 (${parent[u]}, ${u}) 权重 ${key[u]} 加入 MST`,
     }
 
-    for (const [v, w] of graph[u]) {
-      if (!visited[v] && w < dist[v]) {
-        const oldDist = dist[v]
-        dist[v] = w
+    // 更新相邻节点的 key
+    for (const v of adj[u]) {
+      if (inMST[v]) continue
+      const wkey = u < v ? `${u}-${v}` : `${v}-${u}`
+      const w = weight[wkey]
+      if (w < key[v]) {
+        const oldKey = key[v]
+        key[v] = w
         parent[v] = u
 
         yield {
-          description: `更新节点 ${v} 的 key：从 ${oldDist === INF ? 'INF' : oldDist} 降为 ${w}（发现更短的边 (${u}, ${v})），设置 parent[${v}] = ${u}`,
+          objects: [
+            ...mkNodes({ [u]: COLORS.sorted, [v]: COLORS.highlight }),
+            ...allEdges.map(e =>
+              mstEdgeKeys.has(getEdgeId(parseInt(e.from.slice(2)), parseInt(e.to.slice(2))))
+                ? { ...e, color: COLORS.sorted }
+                : (e.from === `n-${u}` && e.to === `n-${v}`) || (e.from === `n-${v}` && e.to === `n-${u}`)
+                  ? { ...e, color: COLORS.comparing }
+                  : e
+            ),
+          ],
           codeLine: 5,
-          objects: dist.map((d, i) =>
-            mkBar(`n${i}`, d === INF ? 0 : d * 3 + 1, i,
-              i === v ? '#ef4444' : visited[i] ? '#10b981' : '#3b82f6',
-              `节点${i}`)
-          ),
+          description: `更新节点 ${v} 的 key：${oldKey === INF ? 'INF' : oldKey} → ${w}（发现更短的边 (${u},${v})），parent[${v}] = ${u}`,
         }
       }
     }
   }
 
   yield {
-    description: 'Prim 算法完成！MST 构建完毕，所有节点已加入最小生成树',
-    codeLine: 6,
-    objects: dist.map((d, i) =>
-      mkBar(`n${i}`, d === INF ? 0 : d * 3 + 1, i, '#10b981',
-        `节点${i}`)
-    ),
+    objects: [
+      ...mkNodes(Object.fromEntries(Array.from({ length: n }, (_, i) => [i, COLORS.sorted]))),
+      ...allEdges.map(e =>
+        mstEdgeKeys.has(getEdgeId(parseInt(e.from.slice(2)), parseInt(e.to.slice(2))))
+          ? { ...e, color: COLORS.sorted }
+          : { ...e, color: '#e2e8f0' }
+      ),
+    ],
+    codeLine: 7,
+    description: `Prim 完成！MST 已构建，包含 ${n - 1} 条边，总权重 = ${key.reduce((a, b) => a + b, 0)}`,
   }
 }

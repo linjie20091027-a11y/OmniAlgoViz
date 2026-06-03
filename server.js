@@ -9,6 +9,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
 const PORT = process.env.PORT || 3000
 
+// Tailwind 需要 style-src 'unsafe-inline' 用于开发环境样式注入
+// 生产构建后所有样式提取到 CSS 文件，届时可移除
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
