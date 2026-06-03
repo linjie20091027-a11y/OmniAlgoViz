@@ -89,7 +89,7 @@ export default function TreeVisualizer({ scene }: Props) {
 
     // 画节点
     for (const node of nodes) {
-      const isHighlight = scene.highlights.includes(node.id)
+      const isHighlight = scene.highlights?.includes(node.id)
 
       // 外圈光晕
       if (isHighlight) {

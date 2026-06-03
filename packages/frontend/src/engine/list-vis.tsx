@@ -50,7 +50,7 @@ export default function ListVisualizer({ scene }: Props) {
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i]
       const x = startX + i * (NODE_W + ARROW)
-      const isHighlight = scene.highlights.includes(node.id)
+      const isHighlight = scene.highlights?.includes(node.id)
 
       // 箭头到下一个节点
       if (i < nodes.length - 1 && node.nextId) {

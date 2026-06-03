@@ -95,7 +95,7 @@ export interface LabelObject {
 
 export interface Scene {
   objects: SceneObject[]
-  highlights: string[]       // 当前高亮对象 id 列表
+  highlights?: string[]      // 当前高亮对象 id 列表
   codeLine: number           // 关联代码行号
   description: string        // 步骤说明文字
 }

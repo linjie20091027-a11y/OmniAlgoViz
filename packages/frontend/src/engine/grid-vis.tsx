@@ -45,7 +45,7 @@ export default function GridVisualizer({ scene }: Props) {
         const cell = cellMap.get(`${r}-${c}`)
         const x = startX + c * cellW
         const y = startY + r * cellH
-        const isHighlight = cell ? scene.highlights.includes(cell.id) : false
+        const isHighlight = cell ? scene.highlights?.includes(cell.id) : false
 
         ctx.fillStyle = cell ? cell.color : '#f8fafc'
         ctx.fillRect(x, y, cellW, cellH)

@@ -67,7 +67,7 @@ export default function BarVisualizer({ scene }: Props) {
       ctx.fill()
 
       // 高亮描边
-      if (scene.highlights.includes(bar.id)) {
+      if (scene.highlights?.includes(bar.id)) {
         ctx.strokeStyle = '#fbbf24'
         ctx.lineWidth = 2.5
         ctx.stroke()

@@ -1,11 +1,17 @@
 import Sidebar from './sidebar'
 import type { ReactNode } from 'react'
 
-export default function AppLayout({ children }: { children: ReactNode }) {
+interface Props {
+  children: ReactNode
+  dark: boolean
+  onToggleDark: () => void
+}
+
+export default function AppLayout({ children, dark, onToggleDark }: Props) {
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-auto">
+    <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-950 transition-colors">
+      <Sidebar dark={dark} onToggleDark={onToggleDark} />
+      <main className="flex-1 overflow-auto dark:bg-gray-950 transition-colors">
         {children}
       </main>
     </div>

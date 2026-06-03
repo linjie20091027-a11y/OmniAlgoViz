@@ -59,7 +59,7 @@ export default function PointVisualizer({ scene }: Props) {
       ctx.fillStyle = pt.color
       ctx.fill()
 
-      if (scene.highlights.includes(pt.id)) {
+      if (scene.highlights?.includes(pt.id)) {
         ctx.strokeStyle = '#fbbf24'
         ctx.lineWidth = 2.5
         ctx.stroke()
