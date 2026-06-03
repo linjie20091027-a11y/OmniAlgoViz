@@ -1,128 +1,108 @@
-import type { Scene, BarObject } from '@vsa/shared'
+import type { Scene, TreeNodeObject } from '@vsa/shared'
 import { COLORS } from '@vsa/shared'
-
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
-}
-
-interface BSTNode {
-  val: number
-  left: BSTNode | null
-  right: BSTNode | null
-}
-
-function flattenInOrder(root: BSTNode | null): number[] {
-  const result: number[] = []
-  function dfs(node: BSTNode | null) {
-    if (!node) return
-    dfs(node.left)
-    result.push(node.val)
-    dfs(node.right)
-  }
-  dfs(root)
-  return result
-}
-
-function toBars(root: BSTNode | null, n: number, highlights: string[] = [], focusVal: number | null = null): BarObject[] {
-  const inorder = flattenInOrder(root)
-  const bars: BarObject[] = []
-  for (let i = 0; i < n; i++) {
-    if (i < inorder.length) {
-      let color = COLORS.default
-      if (highlights.includes(`bst-${i}`)) color = COLORS.highlight
-      if (focusVal === inorder[i]) color = COLORS.comparing
-      if (i === 0) color = COLORS.sorted
-      bars.push(mkBar(`bst-${i}`, inorder[i], i, color))
-    } else {
-      bars.push(mkBar(`bst-${i}`, 0, i, COLORS.inactive))
-    }
-  }
-  return bars
-}
-
-function insert(root: BSTNode | null, val: number, scenes: Scene[], n: number): BSTNode {
-  if (!root) {
-    scenes.push({
-      objects: toBars({ val, left: null, right: null }, n, [`bst-0`], val),
-      highlights: [`bst-0`],
-      codeLine: 4,
-      description: `插入新节点 ${val}`,
-    })
-    return { val, left: null, right: null }
-  }
-
-  scenes.push({
-    objects: toBars(root, n, [], val),
-    highlights: [],
-    codeLine: 5,
-    description: `比较 ${val} 与当前节点 ${root.val}`,
-  })
-
-  if (val < root.val) {
-    scenes.push({
-      objects: toBars(root, n, [], val),
-      highlights: [],
-      codeLine: 6,
-      description: `${val} < ${root.val}，进入左子树`,
-    })
-    root.left = insert(root.left, val, scenes, n)
-  } else if (val > root.val) {
-    scenes.push({
-      objects: toBars(root, n, [], val),
-      highlights: [],
-      codeLine: 8,
-      description: `${val} > ${root.val}，进入右子树`,
-    })
-    root.right = insert(root.right, val, scenes, n)
-  }
-
-  return root
-}
 
 export default function* bstGenerator(params: { size: number }): Generator<Scene> {
   const n = params.size
-  const vals = Array.from({ length: n }, () => Math.floor(Math.random() * 80) + 1)
+  const values = Array.from({ length: n }, () => Math.floor(Math.random() * 80) + 10)
+  const treeNodes: Map<string, { value: number; left: string | null; right: string | null; parent: string | null }> = new Map()
+  const insertedIds: string[] = []
+  let rootId: string | null = null
 
-  yield {
-    objects: new Array(n).fill(0).map((_, i) => mkBar(`bst-${i}`, 0, i, COLORS.inactive)),
-    highlights: [],
-    codeLine: 1,
-    description: `初始化空二叉搜索树，准备插入 ${n} 个元素`,
+  function buildTreeObjects(): TreeNodeObject[] {
+    const result: TreeNodeObject[] = []
+    const visited = new Set<string>()
+    function dfs(id: string | null) {
+      if (!id || visited.has(id)) return
+      visited.add(id)
+      const node = treeNodes.get(id)!
+      result.push({
+        kind: 'treeNode',
+        id,
+        value: node.value,
+        parentId: node.parent,
+        children: [node.left, node.right].filter(Boolean) as string[],
+        color: COLORS.default,
+      })
+      dfs(node.left)
+      dfs(node.right)
+    }
+    dfs(rootId)
+    return result
   }
 
-  const scenes: Scene[] = []
-  let root: BSTNode | null = null
+  function* insert(value: number): Generator<Scene> {
+    const id = `node-${value}-${Date.now()}`
+    treeNodes.set(id, { value, left: null, right: null, parent: null })
 
-  yield {
-    objects: toBars(null, n),
-    highlights: [],
-    codeLine: 2,
-    description: `待插入元素：[${vals.join(', ')}]`,
-  }
+    if (!rootId) {
+      rootId = id
+      insertedIds.push(id)
+      yield {
+        objects: buildTreeObjects(),
+        highlights: [id],
+        codeLine: 3,
+        description: `插入根节点 ${value}`,
+      }
+      return
+    }
 
-  for (const val of vals) {
-    root = insert(root, val, scenes, n)
-    yield* scenes
-    scenes.length = 0
+    let cur = rootId
+    while (true) {
+      const curNode = treeNodes.get(cur)!
+      yield {
+        objects: buildTreeObjects().map(n => n.id === cur ? { ...n, color: COLORS.comparing } : n),
+        highlights: [cur],
+        codeLine: 5,
+        description: `比较 ${value} 与当前节点 ${curNode.value}`,
+      }
 
-    const inorder = flattenInOrder(root)
-    yield {
-      objects: inorder.map((v, i) => {
-        let color = COLORS.default
-        if (i === 0) color = COLORS.sorted
-        return mkBar(`bst-${i}`, v, i, color)
-      }),
-      highlights: [],
-      codeLine: 10,
-      description: `${val} 插入完成，中序序列：[${inorder.join(', ')}]`,
+      if (value < curNode.value) {
+        if (!curNode.left) {
+          curNode.left = id
+          treeNodes.get(id)!.parent = cur
+          insertedIds.push(id)
+          yield {
+            objects: buildTreeObjects(),
+            highlights: [id],
+            codeLine: 7,
+            description: `${value} < ${curNode.value}，插入为左子节点`,
+          }
+          return
+        }
+        cur = curNode.left
+      } else {
+        if (!curNode.right) {
+          curNode.right = id
+          treeNodes.get(id)!.parent = cur
+          insertedIds.push(id)
+          yield {
+            objects: buildTreeObjects(),
+            highlights: [id],
+            codeLine: 9,
+            description: `${value} >= ${curNode.value}，插入为右子节点`,
+          }
+          return
+        }
+        cur = curNode.right
+      }
     }
   }
 
-  const final = flattenInOrder(root)
   yield {
-    objects: final.map((v, i) => mkBar(`bst-${i}`, v, i, COLORS.sorted)),
+    objects: [],
+    highlights: [],
+    codeLine: 1,
+    description: `准备插入 ${n} 个随机值到二叉搜索树`,
+  }
+
+  for (const v of values) {
+    yield* insert(v)
+  }
+
+  yield {
+    objects: buildTreeObjects(),
     highlights: [],
     codeLine: 12,
-    description: `BST 构建完成，中序遍历结果：[${final.join(', ')}]（升序）`,
+    description: `二叉搜索树构建完成，共 ${insertedIds.length} 个节点`,
   }
 }

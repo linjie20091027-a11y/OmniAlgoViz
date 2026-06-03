@@ -3,9 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { registry } from '../registry'
 
 const CATEGORY_NAMES: Record<string, string> = {
-  sorting: '排序算法',
-  'data-structure': '数据结构',
-  fundamental: '基础算法',
+  'sorting':          '排序算法',
+  'data-structure':   '数据结构',
+  'fundamental':      '基础算法',
+  'graph':            '图论算法',
+  'dp':               '动态规划',
+  'math':             '数学/数论',
+  'string':           '字符串算法',
+  'search':           '搜索算法',
+  'geometry':         '计算几何',
 }
 
 export default function Sidebar() {

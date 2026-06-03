@@ -1,55 +1,61 @@
-import type { Scene, BarObject } from '@vsa/shared'
+import type { Scene, ListNodeObject } from '@vsa/shared'
 import { COLORS } from '@vsa/shared'
-
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
-}
-
-function hashFunc(key: number, m: number): number {
-  return ((key % m) + m) % m
-}
 
 export default function* hashTableGenerator(params: { size: number }): Generator<Scene> {
   const m = params.size
-  const table: number[][] = Array.from({ length: m }, () => [])
+  const buckets: { id: string; value: number; prev: string | null; next: string | null }[][] =
+    Array.from({ length: m }, (_, i) => [{
+      id: `head-${i}`, value: -1, prev: null, next: null,
+    }])
 
-  yield {
-    objects: table.map((_, i) => mkBar(`bucket-${i}`, 0, i, COLORS.default, `桶 ${i}: 空`)),
-    highlights: [],
-    codeLine: 1,
-    description: `初始化哈希表，共 ${m} 个桶，使用除留余数法 hash(key) = key % ${m}`,
+  function buildChainObjects(): ListNodeObject[] {
+    const result: ListNodeObject[] = []
+    for (let i = 0; i < m; i++) {
+      const chain = buckets[i]
+      const listNodes = chain.map((nd, j) => ({
+        kind: 'listNode' as const,
+        id: nd.id,
+        value: nd.value === -1 ? 0 : nd.value,
+        prevId: j > 0 ? chain[j - 1].id : null,
+        nextId: j < chain.length - 1 ? chain[j + 1].id : null,
+        color: nd.value === -1 ? COLORS.inactive : COLORS.default,
+        head: j === 0,
+      }))
+      result.push(...listNodes)
+    }
+    return result
   }
 
-  const keys = [14, 21, 7, 35, 10, 42, 28, 5].slice(0, Math.min(8, m * 2 - 1))
+  yield {
+    objects: buildChainObjects(),
+    highlights: [],
+    codeLine: 1,
+    description: `初始化哈希表，${m} 个桶，使用链地址法`,
+  }
 
+  const keys = [14, 21, 7, 35, 10, 42, 28, 5].slice(0, Math.min(8, m * 2))
   for (const key of keys) {
-    const bucket = hashFunc(key, m)
-    table[bucket].push(key)
-
-    const bars = table.map((chain, i) => {
-      const totalVal = chain.length > 0 ? chain[0] : 0
-      let color = COLORS.default
-      if (i === bucket) color = COLORS.highlight
-      if (chain.length === 0) color = COLORS.inactive
-      const label = chain.length > 0 ? `桶 ${i}: [${chain.join(', ')}]` : `桶 ${i}: 空`
-      return mkBar(`bucket-${i}`, chain.length * 10, i, color, label)
-    })
+    const bucket = ((key % m) + m) % m
+    const id = `node-${key}`
+    const chain = buckets[bucket]
+    const tail = chain[chain.length - 1]
+    tail.next = id
+    chain.push({ id, value: key, prev: tail.id, next: null })
 
     yield {
-      objects: bars,
-      highlights: [`bucket-${bucket}`],
+      objects: buildChainObjects().map(o =>
+        o.id === id ? { ...o, color: COLORS.sorted } : o
+      ),
+      highlights: [id, `head-${bucket}`],
       codeLine: 4,
-      description: `insert(${key}) → hash = ${key} % ${m} = ${bucket}，加入桶 ${bucket}`,
+      description: `insert(${key}) → hash=${bucket}，链入桶 ${bucket}`,
     }
   }
 
   yield {
-    objects: table.map((chain, i) => {
-      const label = chain.length > 0 ? `桶 ${i}: [${chain.join(', ')}]` : `桶 ${i}: 空`
-      return mkBar(`bucket-${i}`, chain.length * 10, i, COLORS.sorted, label)
-    }),
+    objects: buildChainObjects(),
     highlights: [],
-    codeLine: 5,
-    description: '所有元素插入完成，展示各桶链表',
+    codeLine: 7,
+    description: `所有元素插入完成`,
   }
 }

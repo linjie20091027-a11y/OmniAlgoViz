@@ -1,79 +1,54 @@
-import type { Scene, BarObject } from '@vsa/shared'
+import type { Scene, ListNodeObject } from '@vsa/shared'
 import { COLORS } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string): BarObject {
-  return { kind: 'bar', id, value, index, color }
-}
-
-function toBars(arr: number[], highlights: string[] = [], compareIdx: number[] = [], result: (number | null)[] = []): BarObject[] {
-  return arr.map((v, i) => {
-    let color = COLORS.default
-    if (highlights.includes(`bar-${i}`)) color = COLORS.highlight
-    if (compareIdx.includes(i)) color = COLORS.comparing
-    if (result[i] !== undefined && result[i] !== null) color = COLORS.sorted
-    return mkBar(`bar-${i}`, v, i, color)
-  })
-}
-
-export default function* monotonicStack(params: { size: number }): Generator<Scene> {
+export default function* monotonStackGenerator(params: { size: number }): Generator<Scene> {
   const n = params.size
-  const arr: number[] = Array.from({ length: n }, () => Math.floor(Math.random() * 80) + 1)
+  const arr = Array.from({ length: n }, () => Math.floor(Math.random() * 50) + 1)
+  const stack: { id: string; val: number; index: number; prev: string | null; next: string | null }[] = []
+
+  function buildListObjects(): ListNodeObject[] {
+    return stack.map((nd, i) => ({
+      kind: 'listNode' as const,
+      id: nd.id,
+      value: nd.val,
+      prevId: nd.prev,
+      nextId: nd.next,
+      color: COLORS.default,
+      head: i === stack.length - 1,
+    }))
+  }
 
   yield {
-    objects: toBars(arr),
+    objects: [],
     highlights: [],
     codeLine: 1,
-    description: `初始数组，求每个元素的下一个更大元素`,
+    description: `单调栈找下一个更大元素，数组: [${arr.join(', ')}]`,
   }
-
-  const stack: number[] = []
-  const result: (number | null)[] = new Array(n).fill(null)
 
   for (let i = 0; i < n; i++) {
-    yield {
-      objects: toBars(arr, [], [i]),
-      highlights: [],
-      codeLine: 4,
-      description: `遍历到 arr[${i}] = ${arr[i]}，检查栈顶元素`,
-    }
-
-    while (stack.length > 0 && arr[stack[stack.length - 1]] < arr[i]) {
-      const popped = stack.pop()!
-      result[popped] = arr[i]
-
+    while (stack.length > 0 && stack[stack.length - 1].val < arr[i]) {
+      const popped = stack[stack.length - 1]
       yield {
-        objects: toBars(arr, [`bar-${popped}`], [i], result),
-        highlights: [`bar-${popped}`],
-        codeLine: 6,
-        description: `栈顶 arr[${popped}] = ${arr[popped]} 小于当前 ${arr[i]}，弹出并记录结果 = ${arr[i]}`,
+        objects: buildListObjects().map(o => o.id === popped.id ? { ...o, color: COLORS.swapping } : o),
+        highlights: [popped.id],
+        codeLine: 4,
+        description: `arr[${i}]=${arr[i]} > 栈顶 ${popped.val}（来自 arr[${popped.index}]），弹出`,
       }
+      const prev = stack.length > 1 ? stack[stack.length - 2] : null
+      stack.pop()
+      if (stack.length > 0) stack[stack.length - 1].next = null
     }
-
-    stack.push(i)
-    const stackHighlights = stack.map(j => `bar-${j}`)
+    const id = `ms-${i}`
+    const prevTop = stack.length > 0 ? stack[stack.length - 1] : null
+    if (prevTop) prevTop.next = id
+    stack.push({ id, val: arr[i], index: i, prev: prevTop?.id ?? null, next: null })
     yield {
-      objects: toBars(arr, stackHighlights, [i]),
-      highlights: [],
+      objects: buildListObjects().map(o => o.id === id ? { ...o, color: COLORS.sorted } : o),
+      highlights: [id],
       codeLine: 7,
-      description: `将 arr[${i}] = ${arr[i]} 入栈，栈内索引：[${stack.join(', ')}]（单调递减栈）`,
+      description: `压入 arr[${i}]=${arr[i]}，栈单调递减`,
     }
   }
 
-  while (stack.length > 0) {
-    const popped = stack.pop()!
-    result[popped] = null
-    yield {
-      objects: toBars(arr, [`bar-${popped}`], [], result),
-      highlights: [`bar-${popped}`],
-      codeLine: 9,
-      description: `弹出 arr[${popped}]，右侧无更大元素，结果 = -1`,
-    }
-  }
-
-  yield {
-    objects: toBars(arr, [], [], result),
-    highlights: [],
-    codeLine: 10,
-    description: `完成！结果：[${result.map(v => v ?? -1).join(', ')}]`,
-  }
+  yield { objects: buildListObjects(), highlights: [], codeLine: 10, description: `处理完成，栈内剩余 ${stack.length} 个元素` }
 }

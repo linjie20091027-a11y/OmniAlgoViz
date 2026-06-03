@@ -1,82 +1,63 @@
-import type { Scene, BarObject } from '@vsa/shared'
+import type { Scene, ListNodeObject } from '@vsa/shared'
 import { COLORS } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string): BarObject {
-  return { kind: 'bar', id, value, index, color }
-}
-
-function toBars(arr: number[], front: number, rear: number, highlight: number | null = null): BarObject[] {
-  const n = arr.length
-  return arr.map((v, i) => {
-    if (highlight !== null && i === highlight) return mkBar(`bar-${i}`, v, i, COLORS.highlight)
-    if (i === front % n && front !== rear) return mkBar(`bar-${i}`, v, i, COLORS.pointer)
-    if (i === rear % n) return mkBar(`bar-${i}`, v, i, COLORS.selected)
-    return mkBar(`bar-${i}`, v, i, COLORS.inactive)
-  })
-}
-
 export default function* queueGenerator(params: { size: number }): Generator<Scene> {
-  const capacity = params.size
-  const arr: number[] = new Array(capacity).fill(0)
-  let front = 0
-  let rear = 0
-  let cnt = 0
+  const n = params.size
+  const values = Array.from({ length: n }, () => Math.floor(Math.random() * 80) + 1)
+  const queue: { id: string; value: number; prev: string | null; next: string | null }[] = []
 
-  yield {
-    objects: toBars(arr, front, rear),
-    highlights: [],
-    codeLine: 1,
-    description: `初始化空队列，容量 ${capacity}，front = ${front}，rear = ${rear}`,
+  function buildListObjects(): ListNodeObject[] {
+    return queue.map((nd, i) => ({
+      kind: 'listNode' as const,
+      id: nd.id,
+      value: nd.value,
+      prevId: nd.prev,
+      nextId: nd.next,
+      color: COLORS.default,
+      head: i === 0, // 队首标记
+    }))
   }
 
-  const values = [5, 12, 8, 23, 17, 3, 45, 9].slice(0, capacity)
+  yield { objects: [], highlights: [], codeLine: 1, description: `初始化空队列` }
 
-  for (const val of values) {
-    if (cnt >= capacity) {
-      yield {
-        objects: toBars(arr, front, rear),
-        highlights: [],
-        codeLine: 3,
-        description: `队列已满！无法 enqueue(${val})`,
-      }
-      break
-    }
-    arr[rear] = val
-    cnt++
+  // 入队
+  for (let i = 0; i < Math.min(n, 6); i++) {
+    const v = values[i]
+    const id = `que-${i}`
+    const tail = queue.length > 0 ? queue[queue.length - 1] : null
+    if (tail) tail.next = id
+    queue.push({ id, value: v, prev: tail?.id ?? null, next: null })
     yield {
-      objects: toBars(arr, front, rear, rear),
-      highlights: [`bar-${rear}`],
-      codeLine: 4,
-      description: `enqueue(${val}) —— 元素 ${val} 入队，rear 移动到 ${(rear + 1) % capacity}`,
+      objects: buildListObjects().map(o => (o.id === id ? { ...o, color: COLORS.sorted } : o)),
+      highlights: [id],
+      codeLine: 3,
+      description: `enqueue(${v}) → 入队`,
     }
-    rear = (rear + 1) % capacity
   }
 
-  yield {
-    objects: toBars(arr, front, rear),
-    highlights: [],
-    codeLine: 2,
-    description: `入队完成，当前队列大小 = ${cnt}`,
-  }
-
-  const deqCount = Math.min(3, cnt)
-  for (let d = 0; d < deqCount; d++) {
-    const val = arr[front]
+  // 出队
+  for (let i = 0; i < 2 && queue.length > 0; i++) {
+    const front = queue[0]
     yield {
-      objects: toBars(arr, front, rear, front),
-      highlights: [`bar-${front}`],
+      objects: buildListObjects().map(o => (o.id === front.id ? { ...o, color: COLORS.comparing } : o)),
+      highlights: [front.id],
       codeLine: 6,
-      description: `dequeue() —— 取出队首元素 ${val}，front 从 ${front} 移动到 ${(front + 1) % capacity}`,
+      description: `dequeue() → 即将出队队首 ${front.value}`,
     }
-    arr[front] = 0
-    front = (front + 1) % capacity
-    cnt--
+    queue.shift()
+    if (queue.length > 0) queue[0].prev = null
+    yield {
+      objects: buildListObjects(),
+      highlights: [],
+      codeLine: 7,
+      description: `dequeue() → 队首已移除，新队首 = ${queue.length > 0 ? queue[0].value : '空'}`,
+    }
   }
 
   yield {
-    objects: toBars(arr, front, rear),
+    objects: buildListObjects(),
     highlights: [],
-    codeLine: 7,
-    description: '出队操作完成',
+    codeLine: 10,
+    description: `队列操作演示完成，队列内 ${queue.length} 个元素`,
   }
 }

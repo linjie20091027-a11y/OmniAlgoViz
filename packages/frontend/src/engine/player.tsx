@@ -1,6 +1,10 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import type { Scene, AlgorithmModule } from '@vsa/shared'
+import type { Scene, AlgorithmModule, VisualizerType } from '@vsa/shared'
 import BarVisualizer from './bar-vis'
+import TreeVisualizer from './tree-vis'
+import ListVisualizer from './list-vis'
+import GridVisualizer from './grid-vis'
+import PointVisualizer from './point-vis'
 import CodePanel from './code-panel'
 import ParamPanel from './param-panel'
 
@@ -33,16 +37,10 @@ export default function Player({ algorithm }: PlayerProps) {
 
   const current = scenes[step]
 
-  useEffect(() => {
-    scenesRef.current = scenes
-  }, [scenes])
+  useEffect(() => { scenesRef.current = scenes }, [scenes])
 
   const play = useCallback(() => {
-    if (state === 'done') {
-      setStep(0)
-      setState('playing')
-      return
-    }
+    if (state === 'done') { setStep(0); setState('playing'); return }
     setState('playing')
   }, [state])
 
@@ -91,7 +89,6 @@ export default function Player({ algorithm }: PlayerProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* 控制栏 */}
       <div className="glass-elevated rounded-2xl mx-4 mt-4 px-4 py-3 flex items-center gap-4 shrink-0">
         <div className="flex items-center gap-2">
           <button onClick={reset} className="p-2 rounded-xl glass-light hover:bg-white/50 transition-colors" title="重置">
@@ -118,75 +115,60 @@ export default function Player({ algorithm }: PlayerProps) {
           </button>
         </div>
 
-        {/* 进度条 */}
         <div className="flex-1 mx-2">
-          <input
-            type="range"
-            min={0}
-            max={scenes.length - 1}
-            value={step}
+          <input type="range" min={0} max={scenes.length - 1} value={step}
             onChange={e => goToStep(Number(e.target.value))}
             className="w-full h-1.5 rounded-full appearance-none bg-slate-200 cursor-pointer
               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
-              [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-indigo-500 [&::-webkit-slider-thumb]:shadow-md"
-          />
+              [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-indigo-500 [&::-webkit-slider-thumb]:shadow-md" />
         </div>
 
         <div className="flex items-center gap-1.5 text-xs text-slate-400">
           <span className="whitespace-nowrap">速度</span>
           {[0.5, 1, 2, 4].map(s => (
-            <button
-              key={s}
-              onClick={() => setSpeed(s)}
-              className={`px-2 py-1 rounded-lg font-mono transition-colors ${speed === s ? 'bg-indigo-100 text-indigo-600' : 'hover:bg-white/50'}`}
-            >
+            <button key={s} onClick={() => setSpeed(s)}
+              className={`px-2 py-1 rounded-lg font-mono transition-colors ${speed === s ? 'bg-indigo-100 text-indigo-600' : 'hover:bg-white/50'}`}>
               {s}x
             </button>
           ))}
         </div>
 
-        {/* 语言切换 */}
         <div className="flex rounded-xl glass-light overflow-hidden text-xs">
           {(['python', 'cpp'] as const).map(lang => (
-            <button
-              key={lang}
-              onClick={() => { setLanguage(lang); pause() }}
-              className={`px-3 py-1.5 font-mono transition-colors ${language === lang ? 'bg-white/70 text-indigo-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}
-            >
+            <button key={lang} onClick={() => { setLanguage(lang); pause() }}
+              className={`px-3 py-1.5 font-mono transition-colors ${language === lang ? 'bg-white/70 text-indigo-600 font-medium' : 'text-slate-500 hover:text-slate-700'}`}>
               {lang === 'python' ? 'Python' : 'C++'}
             </button>
           ))}
         </div>
       </div>
 
-      {/* 可视化 + 代码区域 */}
       <div className="flex-1 flex gap-4 p-4 min-h-0">
-        {/* 可视化画布 */}
         <div className="flex-1 glass-elevated rounded-2xl overflow-hidden relative flex flex-col">
-          {current && (
-            <BarVisualizer scene={current} />
-          )}
+          {current && <VisualizerSwitch type={algorithm.meta.visualizerType} scene={current} />}
           {current && (
             <div className="absolute bottom-0 left-0 right-0 px-5 py-3 glass-light border-t glass-border">
               <p className="text-sm text-slate-600">{current.description}</p>
             </div>
           )}
         </div>
-
-        {/* 代码面板 */}
         <div className="w-[420px] shrink-0 glass-elevated rounded-2xl overflow-hidden">
           <CodePanel code={code} activeLine={current?.codeLine ?? 1} language={language} />
         </div>
       </div>
 
-      {/* 参数面板 */}
-      <ParamPanel
-        params={algorithm.meta.params}
-        values={params}
-        onChange={handleParamChange}
-        complexity={algorithm.meta.complexity}
-        difficulty={algorithm.meta.difficulty}
-      />
+      <ParamPanel params={algorithm.meta.params} values={params} onChange={handleParamChange}
+        complexity={algorithm.meta.complexity} difficulty={algorithm.meta.difficulty} />
     </div>
   )
+}
+
+function VisualizerSwitch({ type, scene }: { type: VisualizerType; scene: Scene }) {
+  switch (type) {
+    case 'tree':  return <TreeVisualizer scene={scene} />
+    case 'list':  return <ListVisualizer scene={scene} />
+    case 'grid':  return <GridVisualizer scene={scene} />
+    case 'point': return <PointVisualizer scene={scene} />
+    default:      return <BarVisualizer scene={scene} />
+  }
 }

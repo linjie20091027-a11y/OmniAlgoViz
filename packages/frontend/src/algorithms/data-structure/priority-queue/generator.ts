@@ -1,112 +1,86 @@
-import type { Scene, BarObject } from '@vsa/shared'
+import type { Scene, TreeNodeObject } from '@vsa/shared'
 import { COLORS } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
-}
-
-function toBars(heap: number[], size: number, highlights: string[] = [], focusVal: number | null = null): BarObject[] {
-  return heap.map((v, i) => {
-    let color = COLORS.default
-    if (i >= size) color = COLORS.inactive
-    if (highlights.includes(`pq-${i}`)) color = COLORS.highlight
-    if (focusVal === v) color = COLORS.comparing
-    const priority = `优先级:${v}`
-    return mkBar(`pq-${i}`, v, i, color, priority)
-  })
-}
-
-function* bubbleUp(heap: number[], size: number, idx: number): Generator<Scene> {
-  while (idx > 0) {
-    const parent = Math.floor((idx - 1) / 2)
-    if (heap[parent] <= heap[idx]) break
-    yield {
-      objects: toBars(heap, size, [`pq-${parent}`, `pq-${idx}`]),
-      highlights: [`pq-${parent}`, `pq-${idx}`],
-      codeLine: 6,
-      description: `上浮：${heap[parent]} 的优先级低于 ${heap[idx]}，向上交换`,
-    }
-    ;[heap[parent], heap[idx]] = [heap[idx], heap[parent]]
-    idx = parent
-  }
-}
-
-function* bubbleDown(heap: number[], size: number, idx: number): Generator<Scene> {
-  while (true) {
-    let smallest = idx
-    const left = 2 * idx + 1
-    const right = 2 * idx + 2
-    if (left < size && heap[left] < heap[smallest]) smallest = left
-    if (right < size && heap[right] < heap[smallest]) smallest = right
-    if (smallest === idx) break
-    yield {
-      objects: toBars(heap, size, [`pq-${idx}`, `pq-${smallest}`]),
-      highlights: [`pq-${idx}`, `pq-${smallest}`],
-      codeLine: 13,
-      description: `下沉：${heap[idx]} 与更高优先级子节点 ${heap[smallest]} 交换`,
-    }
-    ;[heap[idx], heap[smallest]] = [heap[smallest], heap[idx]]
-    idx = smallest
-  }
-}
-
 export default function* priorityQueueGenerator(params: { size: number }): Generator<Scene> {
-  const maxN = params.size
+  const n = params.size
+  const values = Array.from({ length: n }, () => Math.floor(Math.random() * 60) + 10)
   const heap: number[] = []
-  let size = 0
 
-  yield {
-    objects: [],
-    highlights: [],
-    codeLine: 1,
-    description: '初始化空优先队列（数字越小优先级越高 —— 最小堆）',
+  function buildTreeObjects(): TreeNodeObject[] {
+    return heap.map((v, i) => ({
+      kind: 'treeNode' as const,
+      id: `pq-${i}`,
+      value: v,
+      parentId: i === 0 ? null : `pq-${Math.floor((i - 1) / 2)}`,
+      children: [2 * i + 1, 2 * i + 2].filter(j => j < heap.length).map(String),
+      color: i === 0 ? COLORS.sorted : COLORS.default,
+    }))
   }
 
-  const tasks = [7, 3, 9, 1, 5, 2, 8, 4].slice(0, maxN)
-
-  for (const pri of tasks) {
-    heap.push(pri)
-    size++
-    yield {
-      objects: toBars(heap, size, [`pq-${size - 1}`]),
-      highlights: [`pq-${size - 1}`],
-      codeLine: 3,
-      description: `enqueue(priority=${pri}) —— 新任务加入队尾位置 ${size - 1}`,
+  function* bubbleUp(idx: number): Generator<Scene> {
+    while (idx > 0) {
+      const p = Math.floor((idx - 1) / 2)
+      yield {
+        objects: buildTreeObjects().map(n =>
+          n.id === `pq-${idx}` || n.id === `pq-${p}` ? { ...n, color: COLORS.comparing } : n
+        ),
+        highlights: [`pq-${idx}`, `pq-${p}`],
+        codeLine: 5,
+        description: `比较 ${heap[idx]} 与父节点 ${heap[p]}`,
+      }
+      if (heap[idx] >= heap[p]) break
+      ;[heap[idx], heap[p]] = [heap[p], heap[idx]]
+      idx = p
     }
-    yield* bubbleUp(heap, size, size - 1)
   }
 
-  yield {
-    objects: toBars(heap, size).map((b, i) => {
-      if (i === 0) return { ...b, color: COLORS.sorted }
-      return b
-    }),
-    highlights: [],
-    codeLine: 8,
-    description: `入队完毕，队首为最高优先级任务，优先级 = ${heap[0]}`,
+  function* bubbleDown(): Generator<Scene> {
+    let i = 0
+    while (2 * i + 1 < heap.length) {
+      let smallest = i
+      const l = 2 * i + 1, r = 2 * i + 2
+      if (heap[l] < heap[smallest]) smallest = l
+      if (r < heap.length && heap[r] < heap[smallest]) smallest = r
+      if (smallest === i) break
+      yield {
+        objects: buildTreeObjects().map(n =>
+          n.id === `pq-${i}` || n.id === `pq-${smallest}` ? { ...n, color: COLORS.comparing } : n
+        ),
+        highlights: [`pq-${i}`, `pq-${smallest}`],
+        codeLine: 9,
+        description: `下沉：${heap[i]} 与 ${heap[smallest]} 比较`,
+      }
+      ;[heap[i], heap[smallest]] = [heap[smallest], heap[i]]
+      i = smallest
+    }
   }
 
-  const deqCount = Math.min(3, size)
-  for (let d = 0; d < deqCount; d++) {
+  yield { objects: [], highlights: [], codeLine: 1, description: `优先队列（小根堆）演示` }
+
+  // 插入
+  for (const v of values.slice(0, 5)) {
+    heap.push(v)
+    yield {
+      objects: buildTreeObjects(),
+      highlights: [`pq-${heap.length - 1}`],
+      codeLine: 3,
+      description: `入队: ${v}`,
+    }
+    yield* bubbleUp(heap.length - 1)
+  }
+
+  // 出队
+  if (heap.length > 1) {
     const top = heap[0]
     yield {
-      objects: toBars(heap, size, [`pq-0`]),
-      highlights: [`pq-0`],
-      codeLine: 10,
-      description: `dequeue() —— 取出最高优先级任务，优先级 = ${top}`,
+      objects: buildTreeObjects().map(n => n.id === 'pq-0' ? { ...n, color: COLORS.highlight } : n),
+      highlights: ['pq-0'],
+      codeLine: 11,
+      description: `出队: 堆顶 = ${top}`,
     }
-    heap[0] = heap[size - 1]
-    size--
-    heap.pop()
-    if (size > 0) {
-      yield* bubbleDown(heap, size, 0)
-    }
+    heap[0] = heap.pop()!
+    yield* bubbleDown()
   }
 
-  yield {
-    objects: toBars(heap, size).map(b => ({ ...b, color: COLORS.sorted })),
-    highlights: [],
-    codeLine: 15,
-    description: `出队完成，当前队列大小 = ${size}`,
-  }
+  yield { objects: buildTreeObjects(), highlights: [], codeLine: 14, description: `优先队列操作完成` }
 }

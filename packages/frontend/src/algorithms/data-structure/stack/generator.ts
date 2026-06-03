@@ -1,78 +1,63 @@
-import type { Scene, BarObject } from '@vsa/shared'
+import type { Scene, ListNodeObject } from '@vsa/shared'
 import { COLORS } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string): BarObject {
-  return { kind: 'bar', id, value, index, color }
-}
-
-function toBars(arr: number[], top: number, highlight: number | null = null): BarObject[] {
-  return arr.map((v, i) => {
-    if (i < top) {
-      if (i === highlight) return mkBar(`bar-${i}`, v, i, COLORS.highlight)
-      return mkBar(`bar-${i}`, v, i, COLORS.default)
-    }
-    return mkBar(`bar-${i}`, 0, i, COLORS.inactive)
-  })
-}
-
 export default function* stackGenerator(params: { size: number }): Generator<Scene> {
-  const maxN = params.size
-  const arr: number[] = new Array(maxN).fill(0)
-  let top = 0
+  const n = params.size
+  const values = Array.from({ length: n }, () => Math.floor(Math.random() * 80) + 1)
+  const stack: { id: string; value: number; prev: string | null; next: string | null }[] = []
 
-  yield {
-    objects: toBars(arr, top),
-    highlights: [],
-    codeLine: 1,
-    description: `初始化空栈，容量 ${maxN}，top = ${top}`,
+  function buildListObjects(): ListNodeObject[] {
+    return stack.map((nd, i) => ({
+      kind: 'listNode' as const,
+      id: nd.id,
+      value: nd.value,
+      prevId: nd.prev,
+      nextId: nd.next,
+      color: COLORS.default,
+      head: i === stack.length - 1, // 栈顶标记
+    }))
   }
 
-  const pushVals = [5, 12, 8, 23, 17, 3, 45, 9].slice(0, maxN)
+  yield { objects: [], highlights: [], codeLine: 1, description: `初始化空栈` }
 
-  for (const val of pushVals) {
-    if (top >= maxN) {
-      yield {
-        objects: toBars(arr, top),
-        highlights: [],
-        codeLine: 3,
-        description: `栈已满！无法 push(${val})`,
-      }
-      break
-    }
-    arr[top] = val
+  // 压栈操作
+  for (let i = 0; i < Math.min(n, 6); i++) {
+    const v = values[i]
+    const id = `stk-${i}`
+    const prevTop = stack.length > 0 ? stack[stack.length - 1] : null
+    if (prevTop) prevTop.next = id
+    stack.push({ id, value: v, prev: prevTop?.id ?? null, next: null })
     yield {
-      objects: toBars(arr, top + 1, top),
-      highlights: [`bar-${top}`],
-      codeLine: 4,
-      description: `push(${val}) —— 元素 ${val} 入栈，top 移动到 ${top + 1}`,
+      objects: buildListObjects().map(o => (o.id === id ? { ...o, color: COLORS.sorted } : o)),
+      highlights: [id],
+      codeLine: 3,
+      description: `push(${v}) → 入栈，栈顶现在为 ${v}`,
     }
-    top++
   }
 
-  yield {
-    objects: toBars(arr, top),
-    highlights: [],
-    codeLine: 2,
-    description: '所有元素入栈完成',
-  }
-
-  const popCount = Math.min(3, top)
-  for (let p = 0; p < popCount; p++) {
-    const topIdx = top - 1
+  // 弹栈操作
+  for (let i = 0; i < 2 && stack.length > 0; i++) {
+    const top = stack[stack.length - 1]
     yield {
-      objects: toBars(arr, top, topIdx),
-      highlights: [`bar-${topIdx}`],
+      objects: buildListObjects().map(o => (o.id === top.id ? { ...o, color: COLORS.comparing } : o)),
+      highlights: [top.id],
       codeLine: 6,
-      description: `pop() —— 取出栈顶元素 ${arr[topIdx]}，top 从 ${top} 移动到 ${top - 1}`,
+      description: `pop() → 即将弹出栈顶 ${top.value}`,
     }
-    arr[topIdx] = 0
-    top--
+    stack.pop()
+    if (stack.length > 0) stack[stack.length - 1].next = null
+    yield {
+      objects: buildListObjects(),
+      highlights: [],
+      codeLine: 7,
+      description: `pop() → 栈顶已移除，当前栈顶 = ${stack.length > 0 ? stack[stack.length - 1].value : '空'}`,
+    }
   }
 
   yield {
-    objects: toBars(arr, top),
+    objects: buildListObjects(),
     highlights: [],
-    codeLine: 7,
-    description: `出栈操作完成，当前栈顶为索引 ${top - 1 >= 0 ? top - 1 : '空'}`,
+    codeLine: 10,
+    description: `栈操作演示完成，栈内 ${stack.length} 个元素`,
   }
 }
