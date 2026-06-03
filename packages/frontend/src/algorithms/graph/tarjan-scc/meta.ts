@@ -7,5 +7,6 @@ const meta: AlgorithmMeta = {
   difficulty: 4,
   params: [{ key: 'size', label: '节点数', type: 'number', default: 6, min: 3, max: 12 }],
   complexity: { time: 'O(V+E)', space: 'O(V)' },
+  description: '求有向图的强连通分量。一次 DFS 中用 lowlink 数组追踪可达最早祖先，栈追踪当前搜索路径。O(V+E)。',
 }
 export default meta

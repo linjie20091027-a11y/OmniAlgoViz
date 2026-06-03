@@ -10,5 +10,6 @@ const meta: AlgorithmMeta = {
     { key: 'exp', label: '指数', type: 'number', default: 10, min: 1, max: 30 },
   ],
   complexity: { time: 'O(log n)', space: 'O(1)' },
+  description: '用二分思想高效计算 a^b mod m。指数为奇数时乘底数，底数平方，指数右移。O(log b)，广泛应用于密码学和取模运算。',
 }
 export default meta

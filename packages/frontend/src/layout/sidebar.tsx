@@ -34,7 +34,7 @@ export default function Sidebar({ dark, onToggleDark }: { dark: boolean; onToggl
       <div className="px-6 py-5 flex items-center justify-between">
         <button onClick={() => navigate('/')} className="text-left">
           <span className="text-xl font-light tracking-tight dark:text-white">
-            Visual<span className="font-semibold">Algo</span>
+            Omni<span className="font-semibold">Algo</span>Viz
           </span>
         </button>
         <button

@@ -7,5 +7,6 @@ const meta: AlgorithmMeta = {
   difficulty: 3,
   params: [{ key: 'size', label: '节点数', type: 'number', default: 4, min: 3, max: 8 }],
   complexity: { time: 'O(V³)', space: 'O(V²)' },
+  description: '全源最短路径。三重循环枚举中间节点 k，更新 dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])。O(V³)，动态规划思想。',
 }
 export default meta

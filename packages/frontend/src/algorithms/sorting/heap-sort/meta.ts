@@ -10,5 +10,6 @@ const meta: AlgorithmMeta = {
     { key: 'size', label: '数据量', type: 'number', default: 12, min: 5, max: 40, step: 1 },
   ],
   complexity: { time: 'O(n log n)', space: 'O(1)', worst: 'O(n log n)' },
+  description: '利用大根堆的性质：建堆后反复取出堆顶（最大值）放到末尾。不稳定，原地排序。',
 }
 export default meta

@@ -107,7 +107,7 @@ export type VisualizerType = 'bar' | 'grid' | 'tree' | 'list' | 'graph' | 'point
 export interface AlgorithmMeta {
   id: string                 // 唯一标识，如 'bubble-sort'
   title: string
-  category: string           // 'sorting' | 'data-structure' | 'fundamental' | 'graph' | 'string' | 'dp' | 'math' | 'geometry'
+  category: string
   visualizerType: VisualizerType
   difficulty: 1 | 2 | 3 | 4 | 5
   params: AlgorithmParam[]
@@ -117,6 +117,7 @@ export interface AlgorithmMeta {
     worst?: string
   }
   stable?: boolean
+  description?: string       // 算法原理介绍（Markdown）
 }
 
 export interface AlgorithmParam {

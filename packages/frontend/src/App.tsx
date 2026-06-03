@@ -81,7 +81,7 @@ function HomePage({ query, setQuery, filtered, categories }: {
         {/* 标题 */}
         <div className="text-center mb-10">
           <h1 className="text-5xl font-light tracking-tight text-gray-900 dark:text-white">
-            Visual<span className="font-semibold">Algo</span>
+            Omni<span className="font-semibold">Algo</span>Viz
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-lg mt-2">
             CSP &middot; NOIP &middot; NOI &middot; IOI
