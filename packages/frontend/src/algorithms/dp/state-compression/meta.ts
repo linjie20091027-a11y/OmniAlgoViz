@@ -4,7 +4,7 @@ const meta: AlgorithmMeta = {
   id: 'state-compression',
   title: '状压DP（TSP）',
   category: 'dp',
-  visualizerType: 'bar',
+  visualizerType: 'grid',
   difficulty: 4,
   params: [
     { key: 'size', label: '城市数量', type: 'number', default: 4, min: 3, max: 6, step: 1 },

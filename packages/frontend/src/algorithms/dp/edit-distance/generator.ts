@@ -1,102 +1,117 @@
-import type { Scene, BarObject } from '@vsa/shared'
-import { COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type CellObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
+function mkCell(row: number, col: number, value: string | number, color: string): CellObject {
+  return { kind: 'cell', id: `c-${row}-${col}`, row, col, value, color }
 }
 
-const CHARS = 'ABCDEFGH'
-
 export default function* editDistance(params: { size: number }): Generator<Scene> {
-  const n = params.size
-  const s1 = Array.from({ length: n }, () => CHARS[Math.floor(Math.random() * 8)]).join('')
-  const s2 = s1.split('').map(() => CHARS[Math.floor(Math.random() * 8)]).join('')
-  const m = s1.length
-  const k = s2.length
+  const len = params.size
+  const words = ['kitten', 'sitting', 'horse', 'ros', 'intention', 'execution', 'algorithm', 'altruistic', 'sunday', 'saturday']
+  const a = words[len % words.length]
+  const b = words[(len + 3) % words.length]
 
-  // 展示两个字符串
-  const s1Bars: BarObject[] = [...s1].map((ch, i) =>
-    mkBar(`s1-${i}`, ch.charCodeAt(0) - 64, i, COLORS.default, ch)
-  )
+  const m = a.length, n = b.length
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  const op: string[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(''))
+
+  for (let i = 0; i <= m; i++) { dp[i][0] = i; op[i][0] = '删除' }
+  for (let j = 0; j <= n; j++) { dp[0][j] = j; op[0][j] = '插入' }
+  op[0][0] = '起点'
+
   yield {
-    objects: s1Bars,
-    highlights: [],
+    objects: [
+      ...Array.from({ length: m + 1 }, (_, i) =>
+        mkCell(i, 0, i === 0 ? ' ' : a[i - 1], COLORS.default)
+      ),
+      ...Array.from({ length: n + 1 }, (_, j) =>
+        mkCell(0, j, j === 0 ? ' ' : b[j - 1], COLORS.default)
+      ),
+      ...Array.from({ length: m + 1 }, (_, i) =>
+        Array.from({ length: n + 1 }, (_, j) => {
+          if (i === 0 || j === 0) return mkCell(i, j, dp[i][j], COLORS.default)
+          return null
+        })
+      ).flat().filter(Boolean) as CellObject[],
+    ],
     codeLine: 1,
-    description: `源字符串 S1 = "${s1}"（长度=${m}），目标字符串 S2 = "${s2}"（长度=${k}）`,
-  }
-
-  const s2Bars: BarObject[] = [...s2].map((ch, i) =>
-    mkBar(`s2-${i}`, ch.charCodeAt(0) - 64, i, COLORS.comparing, ch)
-  )
-  yield {
-    objects: s2Bars,
-    highlights: [],
-    codeLine: 1,
-    description: `目标字符串 S2 = "${s2}"，求最少编辑操作次数（插入/删除/替换）`,
-  }
-
-  // DP 表，列数取 max(m,k) + 1
-  const cols = Math.max(m, k) + 1
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(k + 1).fill(0))
-  for (let i = 0; i <= m; i++) dp[i][0] = i
-  for (let j = 0; j <= k; j++) dp[0][j] = j
-
-  // 初始化行
-  const initRow = dp[0].map((v, j) => mkBar(`dp-0-${j}`, v * 3, j, COLORS.inactive, `col${j}`))
-  yield {
-    objects: initRow,
-    highlights: [],
-    codeLine: 3,
-    description: `DP 表初始化：第一行 dp[0][j] = j（全部插入），第一列 dp[i][0] = i（全部删除）`,
+    description: `字符串 A="${a}"（${m}字符），字符串 B="${b}"（${n}字符），计算编辑距离`,
   }
 
   for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= k; j++) {
-      if (s1[i - 1] === s2[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1]
-      } else {
-        dp[i][j] = Math.min(
-          dp[i - 1][j] + 1,     // 删除
-          dp[i][j - 1] + 1,     // 插入
-          dp[i - 1][j - 1] + 1  // 替换
-        )
+    for (let j = 1; j <= n; j++) {
+      const cells: CellObject[] = []
+      cells.push(mkCell(i, 0, a[i - 1], COLORS.comparing))
+      cells.push(mkCell(0, j, b[j - 1], COLORS.comparing))
+
+      for (let ri = 1; ri <= m; ri++) {
+        for (let cj = 1; cj <= n; cj++) {
+          if (ri < i || (ri === i && cj < j)) {
+            cells.push(mkCell(ri, cj, `${dp[ri][cj]}`, COLORS.sorted))
+          }
+        }
       }
-    }
 
-    // 展示当前行
-    const row = dp[i].map((v, j) => {
-      let color = COLORS.default
-      if (j === 0) color = COLORS.inactive
-      else if (s1[i - 1] === s2[j - 1]) color = COLORS.sorted
-      else if (v === dp[i - 1][j] + 1) color = COLORS.comparing
-      return mkBar(`dp-${i}-${j}`, v * 3, j, color, j > 0 ? `dp[${i}][${j}]=${v}` : undefined)
-    })
+      yield {
+        objects: cells,
+        codeLine: 4,
+        description: `比较 A[${i}]="${a[i - 1]}" 和 B[${j}]="${b[j - 1]}"`,
+      }
 
-    yield {
-      objects: row,
-      highlights: [],
-      codeLine: 6,
-      description: `DP 第 ${i} 行（字符 '${s1[i - 1]}' 与 S2 各字符比较）：` +
-        (s1[i - 1] === s2[i - 1] ? '字符匹配！dp[i][j] = dp[i-1][j-1]' : '需要 min(删除, 插入, 替换)'),
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      const del = dp[i - 1][j] + 1
+      const ins = dp[i][j - 1] + 1
+      const rep = dp[i - 1][j - 1] + cost
+
+      if (del <= ins && del <= rep) {
+        dp[i][j] = del
+        op[i][j] = cost === 0 ? '匹配' : '删除'
+      } else if (ins <= del && ins <= rep) {
+        dp[i][j] = ins
+        op[i][j] = '插入'
+      } else {
+        dp[i][j] = rep
+        op[i][j] = cost === 0 ? '匹配' : '替换'
+      }
+
+      const updCells: CellObject[] = []
+      for (let ri = 0; ri <= m; ri++) {
+        for (let cj = 0; cj <= n; cj++) {
+          if (ri === i && cj === j) {
+            updCells.push(mkCell(ri, cj, `${dp[ri][cj]}`, COLORS.highlight))
+          } else if ((ri === 0 || cj === 0) && !(ri === 0 && cj === 0)) {
+            updCells.push(mkCell(ri, cj, ri === 0 ? (cj === 0 ? ' ' : b[cj - 1]) : a[ri - 1], COLORS.default))
+          } else if (ri <= i && cj <= n && (ri > 0 && cj > 0)) {
+            updCells.push(mkCell(ri, cj, `${dp[ri][cj]}`, COLORS.sorted))
+          } else if (ri > 0 && cj === 0) {
+            updCells.push(mkCell(ri, cj, dp[ri][0], COLORS.default))
+          } else if (ri === 0 && cj > 0) {
+            updCells.push(mkCell(ri, cj, dp[0][cj], COLORS.default))
+          }
+        }
+      }
+      yield {
+        objects: updCells,
+        codeLine: 5,
+        description: `dp[${i}][${j}] = ${dp[i][j]}，操作：${op[i][j]}`,
+      }
     }
   }
 
-  // 最终结果
-  const dist = dp[m][k]
-  const finalRow = dp[m].map((v, j) =>
-    mkBar(
-      `final-${j}`,
-      v * 3,
-      j,
-      j === k ? COLORS.sorted : COLORS.default,
-      j === k ? `编辑距离=${dist}` : undefined
-    )
-  )
+  const finalCells: CellObject[] = []
+  finalCells.push(mkCell(0, 0, ' ', COLORS.default))
+  for (let j = 1; j <= n; j++) finalCells.push(mkCell(0, j, b[j - 1], COLORS.default))
+  for (let i = 1; i <= m; i++) {
+    finalCells.push(mkCell(i, 0, a[i - 1], COLORS.default))
+    for (let j = 1; j <= n; j++) {
+      finalCells.push(mkCell(i, j, `${dp[i][j]}${op[i][j]}`, COLORS.sorted))
+    }
+  }
+  finalCells.push(mkCell(m + 1, 0, '结果', COLORS.highlight))
+  finalCells.push(mkCell(m + 1, 1, `编辑距离=${dp[m][n]}`, COLORS.highlight))
 
   yield {
-    objects: finalRow,
-    highlights: [`final-${k}`],
-    codeLine: 10,
-    description: `编辑距离完成：从 "${s1}" 变为 "${s2}" 需要 ${dist} 步操作`,
+    objects: finalCells,
+    codeLine: 8,
+    description: `"${a}" → "${b}"，编辑距离 = ${dp[m][n]}`,
   }
 }

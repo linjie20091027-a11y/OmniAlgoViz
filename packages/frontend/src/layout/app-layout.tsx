@@ -9,9 +9,9 @@ interface Props {
 
 export default function AppLayout({ children, dark, onToggleDark }: Props) {
   return (
-    <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-950 transition-colors">
+    <div className="flex h-screen overflow-hidden transition-colors">
       <Sidebar dark={dark} onToggleDark={onToggleDark} />
-      <main className="flex-1 overflow-auto dark:bg-gray-950 transition-colors">
+      <main className="flex-1 overflow-auto transition-colors">
         {children}
       </main>
     </div>

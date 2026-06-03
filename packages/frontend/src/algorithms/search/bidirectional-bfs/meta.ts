@@ -4,7 +4,7 @@ const meta: AlgorithmMeta = {
   id: 'bidirectional-bfs',
   title: '双向BFS',
   category: 'search',
-  visualizerType: 'bar',
+  visualizerType: 'tree',
   difficulty: 3,
   params: [
     { key: 'size', label: '网格规模', type: 'number', default: 8, min: 4, max: 20, step: 1 },

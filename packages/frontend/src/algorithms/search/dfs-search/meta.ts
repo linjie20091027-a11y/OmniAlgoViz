@@ -4,7 +4,7 @@ const meta: AlgorithmMeta = {
   id: 'dfs-search',
   title: 'DFS搜索',
   category: 'search',
-  visualizerType: 'bar',
+  visualizerType: 'tree',
   difficulty: 2,
   params: [
     { key: 'size', label: '网格规模', type: 'number', default: 8, min: 4, max: 20, step: 1 },

@@ -1,98 +1,124 @@
-import type { Scene, BarObject } from '@vsa/shared'
-import { COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type CellObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
+function mkCell(row: number, col: number, value: string | number, color: string): CellObject {
+  return { kind: 'cell', id: `c-${row}-${col}`, row, col, value, color }
 }
 
 export default function* stoneMerge(params: { size: number }): Generator<Scene> {
   const n = params.size
-  const stones: number[] = Array.from({ length: n }, () => Math.floor(Math.random() * 15) + 2)
-
-  const initBars = stones.map((s, i) =>
-    mkBar(`stone-${i}`, s * 3, i, COLORS.default, `${s}`)
-  )
-  yield {
-    objects: initBars,
-    highlights: [],
-    codeLine: 1,
-    description: `初始 ${n} 堆石子：[${stones.join(', ')}]，每次合并相邻两堆，代价为两堆之和，求最小总代价`,
-  }
-
-  const prefix: number[] = [0]
-  for (const s of stones) prefix.push(prefix[prefix.length - 1] + s)
-
-  yield {
-    objects: prefix.slice(1).map((p, i) =>
-      mkBar(`pref-${i}`, p, i, COLORS.comparing, `前缀和=${p}`)
-    ),
-    highlights: [],
-    codeLine: 2,
-    description: `前缀和数组：[${prefix.slice(1).join(', ')}]，用于快速计算区间和`,
-  }
+  const stones: number[] = Array.from({ length: n }, () => Math.floor(Math.random() * 8) + 2)
+  const prefix: number[] = new Array(n + 1).fill(0)
+  for (let i = 0; i < n; i++) prefix[i + 1] = prefix[i] + stones[i]
 
   const dp: number[][] = Array.from({ length: n }, () => new Array(n).fill(0))
-  const split: number[][] = Array.from({ length: n }, () => new Array(n).fill(-1))
 
-  // 对角线初始化
   yield {
-    objects: Array.from({ length: n }, (_, i) =>
-      mkBar(`diag-${i}`, 0, i, COLORS.inactive, `[${i},${i}]=0`)
-    ),
-    highlights: [],
-    codeLine: 3,
-    description: `初始化：dp[i][i] = 0（单堆石子无需合并）`,
+    objects: (() => {
+      const cells: CellObject[] = []
+      cells.push(mkCell(0, 0, '石子', COLORS.default))
+      for (let i = 0; i < n; i++) cells.push(mkCell(0, i + 1, stones[i], COLORS.default))
+      cells.push(mkCell(1, 0, '前缀和', COLORS.default))
+      for (let i = 0; i <= n; i++) cells.push(mkCell(1, i + 1, i === 0 ? 0 : prefix[i], COLORS.pivot))
+      return cells
+    })(),
+    codeLine: 1,
+    description: `${n} 堆石子：[${stones.join(', ')}]，求最小合并代价`,
   }
 
   for (let len = 2; len <= n; len++) {
-    for (let i = 0; i + len - 1 < n; i++) {
+    for (let i = 0; i <= n - len; i++) {
       const j = i + len - 1
-      const total = prefix[j + 1] - prefix[i]
       dp[i][j] = Infinity
 
-      for (let k = i; k < j; k++) {
-        const cost = dp[i][k] + dp[k + 1][j] + total
-        if (cost < dp[i][j]) {
-          dp[i][j] = cost
-          split[i][j] = k
-        }
+      yield {
+        objects: (() => {
+          const cells: CellObject[] = []
+          cells.push(mkCell(0, 0, '区间', COLORS.default))
+          for (let c = 1; c <= n; c++) cells.push(mkCell(0, c, `第${c}堆`, COLORS.default))
+          for (let ri = 0; ri < n; ri++) {
+            cells.push(mkCell(ri + 1, 0, `第${ri + 1}堆`, COLORS.default))
+            for (let cj = 0; cj < n; cj++) {
+              if (cj >= ri) {
+                if (ri === i && cj === j) {
+                  cells.push(mkCell(ri + 1, cj + 1, '?', COLORS.comparing))
+                } else if (cj < ri + len && ri >= i) {
+                  cells.push(mkCell(ri + 1, cj + 1, dp[ri][cj] > 0 || ri === cj ? dp[ri][cj] : '', COLORS.pivot))
+                } else {
+                  cells.push(mkCell(ri + 1, cj + 1, dp[ri][cj] > 0 ? dp[ri][cj] : '', COLORS.default))
+                }
+              }
+            }
+          }
+          return cells
+        })(),
+        codeLine: 3,
+        description: `计算区间 [${i + 1}, ${j + 1}]（${len} 堆石子）`,
       }
 
-      // 展示当前区间及合并过程
-      const bars = stones.map((s, idx) => {
-        let color = COLORS.default
-        if (idx >= i && idx <= j) color = COLORS.comparing
-        if (idx === split[i][j] || idx === split[i][j] + 1) color = COLORS.highlight
-        return mkBar(`merge-${idx}`, s * 3, idx, color,
-          idx >= i && idx <= j ? String(s) : undefined
-        )
-      })
+      const sumCost = prefix[j + 1] - prefix[i]
+      for (let k = i; k < j; k++) {
+        const cost = dp[i][k] + dp[k + 1][j] + sumCost
+
+        yield {
+          objects: (() => {
+            const cells: CellObject[] = []
+            cells.push(mkCell(0, 0, '尝试', COLORS.default))
+            cells.push(mkCell(0, 1, `k=${k + 1}`, COLORS.highlight))
+            cells.push(mkCell(0, 2, `cost=${cost}`, COLORS.highlight))
+            cells.push(mkCell(0, 3, `左=${dp[i][k]}`, COLORS.pivot))
+            cells.push(mkCell(0, 4, `右=${dp[k + 1][j]}`, COLORS.pivot))
+            cells.push(mkCell(0, 5, `区间和=${sumCost}`, COLORS.default))
+            return cells
+          })(),
+          codeLine: 4,
+          description: `尝试在 k=${k + 1} 合并：dp[${i + 1}][${k + 1}]=${dp[i][k]} + dp[${k + 2}][${j + 1}]=${dp[k + 1][j]} + 合并代价${sumCost} = ${cost}`,
+        }
+
+        if (cost < dp[i][j]) dp[i][j] = cost
+      }
 
       yield {
-        objects: bars,
-        highlights: [`merge-${i}`, `merge-${j}`],
-        codeLine: 7,
-        description: `区间 [${i}, ${j}]（长度=${len}）：总石子=${total}，最优分割 k=${split[i][j]}，最小代价=${dp[i][j]}`,
+        objects: (() => {
+          const cells: CellObject[] = []
+          cells.push(mkCell(0, 0, '区间', COLORS.default))
+          for (let c = 1; c <= n; c++) cells.push(mkCell(0, c, `第${c}堆`, COLORS.default))
+          for (let ri = 0; ri < n; ri++) {
+            cells.push(mkCell(ri + 1, 0, `第${ri + 1}堆`, COLORS.default))
+            for (let cj = 0; cj < n; cj++) {
+              if (cj >= ri) {
+                if (ri === i && cj === j) {
+                  cells.push(mkCell(ri + 1, cj + 1, dp[ri][cj], COLORS.sorted))
+                } else if (dp[ri][cj] > 0 || ri === cj) {
+                  cells.push(mkCell(ri + 1, cj + 1, ri === cj ? 0 : dp[ri][cj], COLORS.default))
+                }
+              }
+            }
+          }
+          return cells
+        })(),
+        codeLine: 5,
+        description: `区间 [${i + 1}, ${j + 1}] 最小代价 = ${dp[i][j]}`,
       }
     }
   }
 
-  // 展示一次模拟合并过程
-  yield {
-    objects: stones.map((s, idx) =>
-      mkBar(`sim-${idx}`, s * 3, idx, idx === 0 ? COLORS.highlight : COLORS.comparing)
-    ),
-    highlights: ['sim-0', 'sim-1'],
-    codeLine: 8,
-    description: `模拟合并：先合并 [0] 和 [1] → 代价 ${stones[0] + stones[1]}`,
+  const finalCells: CellObject[] = []
+  finalCells.push(mkCell(0, 0, '石子', COLORS.default))
+  for (let i = 0; i < n; i++) finalCells.push(mkCell(0, i + 1, stones[i], COLORS.default))
+  finalCells.push(mkCell(1, 0, 'DP表', COLORS.default))
+  for (let ri = 0; ri < n; ri++) {
+    for (let cj = 0; cj < n; cj++) {
+      if (cj >= ri) {
+        finalCells.push(mkCell(ri + 1, cj + 1, ri === cj ? 0 : dp[ri][cj], COLORS.sorted))
+      }
+    }
   }
+  finalCells.push(mkCell(n + 2, 0, '结果', COLORS.highlight))
+  finalCells.push(mkCell(n + 2, 1, `最小代价=${dp[0][n - 1]}`, COLORS.highlight))
 
-  // 最终结果：所有石子合并后
-  const totalSum = prefix[n]
   yield {
-    objects: [mkBar('result', totalSum * 3, 0, COLORS.sorted, `合并总和=${totalSum}，最小代价=${dp[0][n - 1]}`)],
-    highlights: ['result'],
-    codeLine: 9,
-    description: `区间 DP 完成！合并 ${n} 堆石子的最小总代价 = ${dp[0][n - 1]}`,
+    objects: finalCells,
+    codeLine: 6,
+    description: `全部石子合并完成，最小总代价 = ${dp[0][n - 1]}`,
   }
 }

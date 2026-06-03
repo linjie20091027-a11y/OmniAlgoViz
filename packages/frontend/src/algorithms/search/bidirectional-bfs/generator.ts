@@ -1,95 +1,146 @@
-import type { Scene, BarObject } from '@vsa/shared'
-import { COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type TreeNodeObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
+function mkNode(id: string, value: string | number, parentId: string | null, color: string, children: string[] = []): TreeNodeObject {
+  return { kind: 'treeNode', id, value, parentId, children, color }
 }
 
-export default function* bidirectionalBfs(params: { size: number }): Generator<Scene> {
+export default function* biBfsSearch(params: { size: number }): Generator<Scene> {
   const N = params.size
-  const grid: number[] = Array.from({ length: N }, () => Math.random() < 0.2 ? 1 : 0)
-  const START = 0
-  const END = N - 1
-  grid[0] = grid[N - 1] = 0
+  const grid: number[][] = Array.from({ length: 5 }, () =>
+    Array.from({ length: 5 }, () => (Math.random() < 0.22 ? 1 : 0))
+  )
+  grid[0][0] = 0
+  grid[4][4] = 0
 
-  const gridBars = (vF: Set<number>, vB: Set<number>, qF: number[], qB: number[], meet: number) =>
-    grid.map((v, i) => {
-      let color = v === 1 ? COLORS.inactive : COLORS.default
-      if (i === meet) color = COLORS.highlight
-      if (vF.has(i) && vB.has(i)) color = COLORS.highlight
-      else if (vF.has(i)) color = COLORS.comparing
-      else if (vB.has(i)) color = COLORS.pointer
-      if (qF.includes(i)) color = COLORS.comparing
-      if (qB.includes(i)) color = COLORS.pointer
-      return mkBar(`g-${i}`, v === 1 ? 0 : 5, i, color, v === 1 ? '#' : String.fromCharCode(65 + i))
-    })
+  const START = [0, 0]
+  const END = [4, 4]
+  const dirs = [[0, 1], [1, 0], [0, -1], [-1, 0]]
 
-  yield { objects: gridBars(new Set(), new Set(), [], [], -1), highlights: [], codeLine: 1, description: `双向BFS: 起点=${START}，终点=${END}` }
+  yield {
+    objects: [
+      mkNode('fwd-root', `正向起点(${START[0]},${START[1]})`, null, COLORS.highlight),
+      mkNode('bwd-root', `反向起点(${END[0]},${END[1]})`, null, COLORS.pivot),
+    ],
+    codeLine: 1,
+    description: `双向BFS：正向从起点(${START[0]},${START[1]})，反向从终点(${END[0]},${END[1]}) 同时搜索`,
+  }
 
-  const qF = [START], qB = [END]
-  const vF = new Set<number>([START]), vB = new Set<number>([END])
-  const pF = new Array(N).fill(-1), pB = new Array(N).fill(-1)
-  let meet = -1
+  const fwdVisited = new Set<string>()
+  const bwdVisited = new Set<string>()
+  fwdVisited.add(`${START[0]},${START[1]}`)
+  bwdVisited.add(`${END[0]},${END[1]}`)
 
-  while (qF.length > 0 && qB.length > 0 && meet === -1) {
-    // 扩展前向
-    const curF = qF.shift()!
+  const fwdQueue: [number, number, string][] = [[START[0], START[1], 'fwd-root']]
+  const bwdQueue: [number, number, string][] = [[END[0], END[1], 'bwd-root']]
+
+  const fwdNodes: TreeNodeObject[] = [mkNode('fwd-root', `正向(${START[0]},${START[1]})`, null, COLORS.highlight)]
+  const bwdNodes: TreeNodeObject[] = [mkNode('bwd-root', `反向(${END[0]},${END[1]})`, null, COLORS.pivot)]
+
+  let fwdCounter = 0
+  let bwdCounter = 0
+  let meetNode = ''
+  let found = false
+
+  yield {
+    objects: [...fwdNodes, ...bwdNodes],
+    codeLine: 2,
+    description: `初始化：正向队列=[起点]，反向队列=[终点]`,
+  }
+
+  while (fwdQueue.length > 0 && bwdQueue.length > 0 && !found) {
+    const fwdLevelSize = Math.min(fwdQueue.length, 3)
+
+    for (let l = 0; l < fwdLevelSize && !found; l++) {
+      const [r, c, pid] = fwdQueue.shift()!
+
+      for (const [dr, dc] of dirs) {
+        const nr = r + dr, nc = c + dc
+        if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5 && grid[nr][nc] === 0 && !fwdVisited.has(`${nr},${nc}`)) {
+          fwdVisited.add(`${nr},${nc}`)
+          fwdCounter++
+          const childId = `fwd-${fwdCounter}`
+          const childNode = mkNode(childId, `正向(${nr},${nc})`, pid, COLORS.highlight)
+          fwdNodes.push(childNode)
+
+          const pNode = fwdNodes.find(n => n.id === pid)!
+          pNode.children.push(childId)
+          pNode.color = COLORS.pivot
+
+          fwdQueue.push([nr, nc, childId])
+
+          if (bwdVisited.has(`${nr},${nc}`)) {
+            found = true
+            meetNode = childId
+            break
+          }
+        }
+      }
+    }
+
+    if (found) break
+
     yield {
-      objects: gridBars(vF, vB, qF, qB, -1),
-      highlights: [`g-${curF}`],
-      codeLine: 6,
-      description: `正向BFS出队 ${curF}`,
+      objects: [...fwdNodes, ...bwdNodes].map(n => ({ ...n, children: [...n.children] })),
+      codeLine: 5,
+      description: `正向扩展一轮，正向树 ${fwdNodes.length} 个节点`,
     }
 
-    for (const nxt of [curF - 1, curF + 1]) {
-      if (nxt < 0 || nxt >= N || grid[nxt] === 1 || vF.has(nxt)) continue
-      vF.add(nxt)
-      pF[nxt] = curF
-      qF.push(nxt)
-      if (vB.has(nxt)) { meet = nxt; break }
-    }
-    if (meet >= 0) break
+    const bwdLevelSize = Math.min(bwdQueue.length, 3)
+    for (let l = 0; l < bwdLevelSize && !found; l++) {
+      const [r, c, pid] = bwdQueue.shift()!
 
-    // 扩展后向
-    if (qB.length === 0) break
-    const curB = qB.shift()!
+      for (const [dr, dc] of dirs) {
+        const nr = r + dr, nc = c + dc
+        if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5 && grid[nr][nc] === 0 && !bwdVisited.has(`${nr},${nc}`)) {
+          bwdVisited.add(`${nr},${nc}`)
+          bwdCounter++
+          const childId = `bwd-${bwdCounter}`
+          const childNode = mkNode(childId, `反向(${nr},${nc})`, pid, COLORS.pivot)
+          bwdNodes.push(childNode)
+
+          const pNode = bwdNodes.find(n => n.id === pid)!
+          pNode.children.push(childId)
+          pNode.color = COLORS.pivot
+
+          bwdQueue.push([nr, nc, childId])
+
+          if (fwdVisited.has(`${nr},${nc}`)) {
+            found = true
+            meetNode = childId
+            break
+          }
+        }
+      }
+    }
+
     yield {
-      objects: gridBars(vF, vB, qF, qB, -1),
-      highlights: [`g-${curB}`],
-      codeLine: 11,
-      description: `反向BFS出队 ${curB}`,
-    }
-
-    for (const nxt of [curB - 1, curB + 1]) {
-      if (nxt < 0 || nxt >= N || grid[nxt] === 1 || vB.has(nxt)) continue
-      vB.add(nxt)
-      pB[nxt] = curB
-      qB.push(nxt)
-      if (vF.has(nxt)) { meet = nxt; break }
+      objects: [...fwdNodes, ...bwdNodes].map(n => ({ ...n, children: [...n.children] })),
+      codeLine: 8,
+      description: `反向扩展一轮，反向树 ${bwdNodes.length} 个节点。正向=${fwdVisited.size}，反向=${bwdVisited.size}`,
     }
   }
 
-  if (meet >= 0) {
+  if (found) {
+    const meetCoord = meetNode.startsWith('fwd-')
+      ? fwdNodes.find(n => n.id === meetNode)?.value?.toString().match(/\((\d),(\d)\)/)
+      : bwdNodes.find(n => n.id === meetNode)?.value?.toString().match(/\((\d),(\d)\)/)
+
+    const allNodes = [...fwdNodes, ...bwdNodes].map(n => ({
+      ...n,
+      color: n.id === meetNode ? COLORS.sorted : n.color,
+      children: [...n.children],
+    }))
+
     yield {
-      objects: gridBars(vF, vB, qF, qB, meet),
-      highlights: [`g-${meet}`],
-      codeLine: 16,
-      description: `✓ 两路相遇于节点 ${meet}！`,
+      objects: allNodes,
+      codeLine: 14,
+      description: `双向BFS 在中间相遇！正向树=${fwdNodes.length}，反向树=${bwdNodes.length}，总=${allNodes.length}`,
     }
-
-    // 重建路径
-    const path: number[] = []
-    let cur = meet
-    while (cur !== -1) { path.unshift(cur); cur = pF[cur] }
-    cur = pB[meet]
-    while (cur !== -1) { path.push(cur); cur = pB[cur] }
-
-    const pathSet = new Set(path)
-    const finalBars = grid.map((v, i) => {
-      let color = v === 1 ? COLORS.inactive : COLORS.default
-      if (pathSet.has(i)) color = COLORS.sorted
-      return mkBar(`g-${i}`, v === 1 ? 0 : 5, i, color, v === 1 ? '#' : String.fromCharCode(65 + i))
-    })
-    yield { objects: finalBars, highlights: path.map(i => `g-${i}`), codeLine: 19, description: `完整路径: ${path.join(' → ')}` }
+  } else {
+    yield {
+      objects: [...fwdNodes, ...bwdNodes].map(n => ({ ...n, children: [...n.children] })),
+      codeLine: 14,
+      description: `双向BFS 完成，未找到路径`,
+    }
   }
 }

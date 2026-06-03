@@ -1,109 +1,108 @@
-import type { Scene, BarObject } from '@vsa/shared'
-import { COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type CellObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
-}
-
-function countValid(limit: number): number {
-  const s = String(limit)
-  const m = s.length
-  // memo[pos][tight][started]
-  const memo: Map<string, number> = new Map()
-
-  function dfs(pos: number, tight: boolean, started: boolean): number {
-    if (pos === m) return started ? 1 : 0
-    const key = `${pos}-${tight ? 1 : 0}-${started ? 1 : 0}`
-    if (memo.has(key)) return memo.get(key)!
-
-    const limitD = tight ? parseInt(s[pos]) : 9
-    let total = 0
-    for (let d = 0; d <= limitD; d++) {
-      if (d === 4) continue
-      total += dfs(pos + 1, tight && d === limitD, started || d !== 0)
-    }
-    memo.set(key, total)
-    return total
-  }
-
-  return dfs(0, true, false)
+function mkCell(row: number, col: number, value: string | number, color: string): CellObject {
+  return { kind: 'cell', id: `c-${row}-${col}`, row, col, value, color }
 }
 
 export default function* digitDp(params: { size: number }): Generator<Scene> {
   const digits = params.size
   const maxNum = Math.pow(10, digits) - 1
-  const rangeStart = Math.pow(10, digits - 1)
-  const rangeEnd = maxNum
+  const R = Math.floor(Math.random() * maxNum) + 100
+  const targetSum = Math.floor(Math.random() * 9 * digits) + 1
+  const RDigits = String(R).padStart(digits, '0').split('').map(Number)
 
-  // 展示数字范围
-  const rangeBars: BarObject[] = [
-    mkBar('lo', rangeStart / Math.pow(10, digits - 3), 0, COLORS.default, `下界=${rangeStart}`),
-    mkBar('hi', rangeEnd / Math.pow(10, digits - 3), 1, COLORS.comparing, `上界=${rangeEnd}`),
-  ]
   yield {
-    objects: rangeBars,
-    highlights: [],
+    objects: (() => {
+      const cells: CellObject[] = []
+      cells.push(mkCell(0, 0, `上限R=${R}`, COLORS.default))
+      cells.push(mkCell(0, 1, `目标和=${targetSum}`, COLORS.default))
+      cells.push(mkCell(1, 0, '数位', COLORS.default))
+      for (let i = 0; i < digits; i++) cells.push(mkCell(1, i + 1, `d${digits - i - 1}`, COLORS.default))
+      cells.push(mkCell(2, 0, 'R的各位', COLORS.default))
+      for (let i = 0; i < digits; i++) cells.push(mkCell(2, i + 1, RDigits[i], COLORS.highlight))
+      return cells
+    })(),
     codeLine: 1,
-    description: `数位DP：统计 [${rangeStart}, ${rangeEnd}] 中不包含数字 4 的整数个数（共 ${digits} 位数）`,
+    description: `数位DP：统计 [0, ${R}] 中各位数字之和 = ${targetSum} 的数有多少个`,
   }
 
-  const s = String(rangeEnd)
-  const m = s.length
+  const memo: Map<string, number> = new Map()
 
-  // 逐位展示分析过程
-  for (let pos = 0; pos < m; pos++) {
-    const digit = parseInt(s[pos])
-    const digitBars: BarObject[] = []
+  function dfs(pos: number, sum: number, tight: boolean): [number, CellObject[]] {
+    if (sum > targetSum) return [0, []]
+    if (pos === digits) return [sum === targetSum ? 1 : 0, []]
 
-    // 展示当前位可选数字
-    for (let d = 0; d <= 9; d++) {
-      if (d === 4) {
-        digitBars.push(mkBar(`d-${pos}-${d}`, 0, d, COLORS.inactive, `${d} (跳过)`))
-      } else if (d <= digit) {
-        digitBars.push(mkBar(`d-${pos}-${d}`, d + 1, d, d === digit ? COLORS.highlight : COLORS.default, String(d)))
-      } else {
-        digitBars.push(mkBar(`d-${pos}-${d}`, 0, d, COLORS.inactive, `${d} (超限)`))
+    const key = `${pos},${sum},${tight}`
+    if (memo.has(key)) return [memo.get(key)!, []]
+
+    const limit = tight ? RDigits[pos] : 9
+    let total = 0
+    const cells: CellObject[] = []
+
+    for (let d = 0; d <= limit; d++) {
+      const [sub, subCells] = dfs(pos + 1, sum + d, tight && d === limit)
+      total += sub
+      cells.push(...subCells)
+      cells.push(mkCell(3 + pos, 0, `位${digits - pos}`, COLORS.default))
+      for (let i = 0; i < digits; i++) {
+        cells.push(mkCell(3 + pos, i + 1, i === pos ? d : (i < pos ? RDigits[i] : '?'), i === pos ? COLORS.comparing : COLORS.default))
       }
     }
 
-    yield {
-      objects: digitBars,
-      highlights: [`d-${pos}-${digit}`],
-      codeLine: 5,
-      description: `第 ${pos} 位（从高位开始）：上限数字 = ${digit}，可选 0~${digit}（跳过4）`,
-    }
+    memo.set(key, total)
+    return [total, cells]
   }
 
-  // 逐步计数（模拟 DFS）
-  const stepCounts: number[] = []
-  for (let step = 0; step < m; step++) {
-    const subLimit = parseInt(s.slice(0, step + 1) + '0'.repeat(m - step - 1))
-    const count = countValid(subLimit)
-    stepCounts.push(count)
+  let rowOffset = 3
+  function stepDfs(pos: number, sum: number, tight: boolean): number {
+    if (sum > targetSum) return 0
+    if (pos === digits) return sum === targetSum ? 1 : 0
 
-    const countBars: BarObject[] = stepCounts.map((c, i) =>
-      mkBar(`cnt-${i}`, c, i, i === step ? COLORS.highlight : COLORS.default, i === step ? `前${i + 1}位: ${c}` : undefined)
-    )
+    const key = `${pos},${sum},${tight}`
+    if (memo.has(key)) return memo.get(key)!
 
-    yield {
-      objects: countBars,
-      highlights: [`cnt-${step}`],
-      codeLine: 8,
-      description: `处理前 ${step + 1} 位后，范围内合法数 = ${count}`,
+    const limit = tight ? RDigits[pos] : 9
+    let total = 0
+
+    for (let d = 0; d <= limit; d++) {
+      total += stepDfs(pos + 1, sum + d, tight && d === limit)
     }
+
+    memo.set(key, total)
+    return total
   }
 
-  const totalValid = countValid(rangeEnd)
-  const totalRange = rangeEnd - rangeStart + 1
+  const answer = stepDfs(0, 0, true)
+
+  const finalCells: CellObject[] = []
+  finalCells.push(mkCell(0, 0, `R=${R}`, COLORS.default))
+  finalCells.push(mkCell(0, 1, `目标和=${targetSum}`, COLORS.default))
+  finalCells.push(mkCell(1, 0, '数位', COLORS.default))
+  for (let i = 0; i < digits; i++) finalCells.push(mkCell(1, i + 1, `d${digits - i - 1}`, COLORS.default))
+  finalCells.push(mkCell(2, 0, '状态', COLORS.default))
+  finalCells.push(mkCell(2, 1, `状态数=${memo.size}`, COLORS.pivot))
+  finalCells.push(mkCell(3, 0, '结果', COLORS.highlight))
+  finalCells.push(mkCell(3, 1, `共有 ${answer} 个数`, COLORS.highlight))
+
+  const cols = digits + 1
+  for (let pos = 0; pos < digits; pos++) {
+    for (let s = 0; s <= targetSum; s++) {
+      for (let tight = 0; tight <= 1; tight++) {
+        const key = `${pos},${s},${tight === 1}`
+        if (memo.has(key)) {
+          const r = 4 + pos + tight
+          finalCells.push(mkCell(r, 0, `pos=${pos}`, COLORS.default))
+          finalCells.push(mkCell(r, 1, `sum=${s}`, COLORS.default))
+          finalCells.push(mkCell(r, 2, `tight=${tight}`, COLORS.default))
+          finalCells.push(mkCell(r, 3, `count=${memo.get(key)}`, COLORS.sorted))
+        }
+      }
+    }
+  }
 
   yield {
-    objects: [
-      mkBar('total', totalRange, 0, COLORS.default, `总数=${totalRange}`),
-      mkBar('valid', totalValid, 1, COLORS.sorted, `合法=${totalValid}`),
-      mkBar('invalid', totalRange - totalValid, 2, COLORS.swapping, `不含法=${totalRange - totalValid}`),
-    ],
-    highlights: ['valid'],
-    codeLine: 10,
-    description: `数位DP 结果：[${rangeStart}, ${rangeEnd}] 中不含数字4的整数共 ${totalValid} 个（共 ${totalRange} 个），O(log n)`,
+    objects: finalCells,
+    codeLine: 5,
+    description: `数位DP完成：在 [0, ${R}] 中，各位数字之和 = ${targetSum} 的数共有 ${answer} 个`,
   }
 }

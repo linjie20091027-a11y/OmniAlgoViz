@@ -1,119 +1,108 @@
-import type { Scene, BarObject } from '@vsa/shared'
-import { COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type CellObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
+function mkCell(row: number, col: number, value: string | number, color: string): CellObject {
+  return { kind: 'cell', id: `c-${row}-${col}`, row, col, value, color }
 }
 
-export default function* lis(params: { size: number }): Generator<Scene> {
+export default function* lisGen(params: { size: number }): Generator<Scene> {
   const n = params.size
-  const arr: number[] = Array.from({ length: n }, () => Math.floor(Math.random() * 90) + 5)
-
-  // 原始数组
-  const initBars = arr.map((v, i) => mkBar(`arr-${i}`, v, i, COLORS.default, String(v)))
-  yield {
-    objects: initBars,
-    highlights: [],
-    codeLine: 1,
-    description: `初始数组，长度 = ${n}，求最长严格上升子序列`,
-  }
-
-  const tails: number[] = []
+  const nums: number[] = Array.from({ length: n }, () => Math.floor(Math.random() * 50) + 1)
   const dp: number[] = new Array(n).fill(1)
-  const pred: (number | null)[] = new Array(n).fill(null)
+
+  const cells: CellObject[] = []
+  cells.push(mkCell(0, 0, '索引', COLORS.default))
+  for (let i = 0; i < n; i++) cells.push(mkCell(0, i + 1, i, COLORS.default))
+  cells.push(mkCell(1, 0, '数值', COLORS.default))
+  for (let i = 0; i < n; i++) cells.push(mkCell(1, i + 1, nums[i], COLORS.default))
+  cells.push(mkCell(2, 0, 'dp[]', COLORS.default))
+  for (let i = 0; i < n; i++) cells.push(mkCell(2, i + 1, dp[i], COLORS.default))
+
+  yield {
+    objects: cells,
+    codeLine: 1,
+    description: `数组：[${nums.join(', ')}]，求最长上升子序列`,
+  }
 
   for (let i = 0; i < n; i++) {
-    const x = arr[i]
+    const row: CellObject[] = []
+    row.push(mkCell(0, 0, '索引', COLORS.default))
+    for (let k = 0; k < n; k++) row.push(mkCell(0, k + 1, k, COLORS.default))
+    row.push(mkCell(1, 0, '数值', COLORS.default))
+    for (let k = 0; k < n; k++) row.push(mkCell(1, k + 1, nums[k], k === i ? COLORS.comparing : COLORS.default))
+    row.push(mkCell(2, 0, 'dp[]', COLORS.default))
+    for (let k = 0; k < n; k++) row.push(mkCell(2, k + 1, dp[k], k < i ? COLORS.sorted : COLORS.default))
 
-    // 二分查找
-    let lo = 0, hi = tails.length
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1
-      if (tails[mid] < x) lo = mid + 1
-      else hi = mid
-    }
-    const pos = lo
-
-    // 展示二分查找过程
-    if (tails.length > 0) {
-      const tailsBars = tails.map((v, j) =>
-        mkBar(`tail-${j}`, v, j, j === pos ? COLORS.highlight : COLORS.comparing, `tails[${j}]`)
-      )
-      yield {
-        objects: tailsBars,
-        highlights: pos < tails.length ? [`tail-${pos}`] : [],
-        codeLine: 6,
-        description: `元素 arr[${i}] = ${x} 的二分查找：插入位置 = ${pos}，tails = [${tails.join(', ')}]`,
-      }
-    } else {
-      yield {
-        objects: [],
-        highlights: [],
-        codeLine: 6,
-        description: `tails 为空，arr[${i}] = ${x} 直接追加`,
-      }
-    }
-
-    if (pos === tails.length) {
-      tails.push(x)
-    } else {
-      tails[pos] = x
-    }
-    dp[i] = pos + 1
-    if (pos > 0) pred[i] = i - 1 // 简化：存储前驱
-
-    // 更新后的 tails
-    const tailsAfter = tails.map((v, j) =>
-      mkBar(`tail-${j}`, v, j, COLORS.default, `tails[${j}]=${v}`)
-    )
     yield {
-      objects: tailsAfter,
-      highlights: [`tail-${pos}`],
-      codeLine: 7,
-      description: `更新 tails[${pos}] = ${x}，tails = [${tails.join(', ')}]`,
+      objects: row,
+      codeLine: 4,
+      description: `处理索引 ${i}（值=${nums[i]}），扫描前面元素`,
     }
-  }
 
-  const len = tails.length
+    for (let j = 0; j < i; j++) {
+      if (nums[j] < nums[i]) {
+        dp[i] = Math.max(dp[i], dp[j] + 1)
 
-  // 回溯构造 LIS
-  const lisSeq: number[] = []
-  let need = len
-  for (let i = n - 1; i >= 0; i--) {
-    if (dp[i] === need) {
-      lisSeq.push(arr[i])
-      need--
-    }
-  }
-  lisSeq.reverse()
+        const compRow: CellObject[] = []
+        compRow.push(mkCell(0, 0, '索引', COLORS.default))
+        for (let k = 0; k < n; k++) compRow.push(mkCell(0, k + 1, k, COLORS.default))
+        compRow.push(mkCell(1, 0, '数值', COLORS.default))
+        for (let k = 0; k < n; k++) {
+          const color = k === i ? COLORS.comparing : k === j ? COLORS.highlight : COLORS.default
+          compRow.push(mkCell(1, k + 1, nums[k], color))
+        }
+        compRow.push(mkCell(2, 0, 'dp[]', COLORS.default))
+        for (let k = 0; k < n; k++) {
+          const color = k === i || k === j ? COLORS.highlight : k < i ? COLORS.sorted : COLORS.default
+          compRow.push(mkCell(2, k + 1, dp[k], color))
+        }
 
-  // 展示原数组，高亮 LIS 元素
-  const lisSet = new Set<number>()
-  lisSeq.forEach((v, idx) => {
-    // 找到对应位置
-    for (let i = 0; i < n; i++) {
-      if (arr[i] === v && !lisSet.has(i) && dp[i] === (idx + 1)) {
-        lisSet.add(i)
-        break
+        yield {
+          objects: compRow,
+          codeLine: 5,
+          description: `找到更小值 nums[${j}]=${nums[j]} < nums[${i}]=${nums[i]}，更新 dp[${i}] = ${dp[i]}`,
+        }
       }
     }
-  })
 
-  const resultBars = arr.map((v, i) => {
-    const inLis = lisSet.has(i)
-    return mkBar(
-      `final-${i}`,
-      v,
-      i,
-      inLis ? COLORS.sorted : COLORS.inactive,
-      inLis ? `${v} ↗` : String(v)
-    )
-  })
+    const doneRow: CellObject[] = []
+    doneRow.push(mkCell(0, 0, '索引', COLORS.default))
+    for (let k = 0; k < n; k++) doneRow.push(mkCell(0, k + 1, k, COLORS.default))
+    doneRow.push(mkCell(1, 0, '数值', COLORS.default))
+    for (let k = 0; k < n; k++) doneRow.push(mkCell(1, k + 1, nums[k], k <= i ? COLORS.sorted : COLORS.default))
+    doneRow.push(mkCell(2, 0, 'dp[]', COLORS.default))
+    for (let k = 0; k < n; k++) doneRow.push(mkCell(2, k + 1, dp[k], k <= i ? COLORS.sorted : COLORS.default))
+
+    yield {
+      objects: doneRow,
+      codeLine: 6,
+      description: `索引 ${i} 处理完成，dp[${i}] = ${dp[i]}`,
+    }
+  }
+
+  const maxLen = Math.max(...dp)
+  const lis: number[] = []
+  let cur = maxLen
+  for (let i = n - 1; i >= 0 && cur > 0; i--) {
+    if (dp[i] === cur) {
+      lis.unshift(nums[i])
+      cur--
+    }
+  }
+
+  const finalRow: CellObject[] = []
+  finalRow.push(mkCell(0, 0, '索引', COLORS.default))
+  for (let k = 0; k < n; k++) finalRow.push(mkCell(0, k + 1, k, COLORS.default))
+  finalRow.push(mkCell(1, 0, '数值', COLORS.default))
+  for (let k = 0; k < n; k++) {
+    const inLis = lis.includes(nums[k]) && lis.indexOf(nums[k]) === dp[k] - 1
+    finalRow.push(mkCell(1, k + 1, nums[k], inLis ? COLORS.sorted : COLORS.default))
+  }
+  finalRow.push(mkCell(2, 0, 'dp[]', COLORS.default))
+  for (let k = 0; k < n; k++) finalRow.push(mkCell(2, k + 1, dp[k], COLORS.sorted))
 
   yield {
-    objects: resultBars,
-    highlights: [],
-    codeLine: 8,
-    description: `最长上升子序列（O(n log n)）：LIS = [${lisSeq.join(', ')}]，长度 = ${len}`,
+    objects: finalRow,
+    codeLine: 7,
+    description: `最长上升子序列长度 = ${maxLen}，序列：[${lis.join(', ')}]`,
   }
 }

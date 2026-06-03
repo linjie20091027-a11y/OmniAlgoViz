@@ -4,7 +4,7 @@ const meta: AlgorithmMeta = {
   id: 'dlx',
   title: 'Dancing Links',
   category: 'search',
-  visualizerType: 'bar',
+  visualizerType: 'tree',
   difficulty: 5,
   params: [
     { key: 'size', label: '矩阵规模', type: 'number', default: 6, min: 3, max: 12, step: 1 },

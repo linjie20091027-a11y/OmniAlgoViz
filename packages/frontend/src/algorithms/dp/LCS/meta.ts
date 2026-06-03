@@ -4,7 +4,7 @@ const meta: AlgorithmMeta = {
   id: 'LCS',
   title: '最长公共子序列',
   category: 'dp',
-  visualizerType: 'bar',
+  visualizerType: 'grid',
   difficulty: 3,
   params: [
     { key: 'size', label: '字符串长度', type: 'number', default: 8, min: 4, max: 15, step: 1 },

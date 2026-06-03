@@ -1,109 +1,100 @@
-import type { Scene, BarObject } from '@vsa/shared'
-import { COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type CellObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
+function mkCell(row: number, col: number, value: string | number, color: string): CellObject {
+  return { kind: 'cell', id: `c-${row}-${col}`, row, col, value, color }
 }
-
-const COIN_SETS = [
-  [1, 2, 5],
-  [1, 3, 4],
-  [2, 5, 10],
-  [1, 5, 11],
-]
 
 export default function* coinChange(params: { size: number }): Generator<Scene> {
   const amount = params.size
-  const coins = COIN_SETS[Math.floor(Math.random() * COIN_SETS.length)]
+  const coinPool = [1, 2, 5, 10, 25]
+  const coins = coinPool.filter(c => c <= amount).slice(0, 4)
+  if (coins.length === 0) coins.push(1)
 
-  // 展示硬币面值
-  const coinBars = coins.map((c, i) =>
-    mkBar(`coin-${i}`, c * 3, i, COLORS.default, `面值${c}`)
-  )
-  yield {
-    objects: coinBars,
-    highlights: [],
-    codeLine: 1,
-    description: `硬币面值：[${coins.join(', ')}]，目标金额 = ${amount}`,
-  }
-
-  const INF = 9999
-  const dp: number[] = new Array(amount + 1).fill(INF)
-  const choice: number[] = new Array(amount + 1).fill(0)
+  const dp: number[] = new Array(amount + 1).fill(Infinity)
   dp[0] = 0
 
-  const initDP = dp.map((v, i) =>
-    mkBar(`dp-${i}`, v === INF ? 0 : v, i, v === INF ? COLORS.inactive : COLORS.default, i === 0 ? 'dp[0]' : undefined)
-  )
+  const row0: CellObject[] = []
+  row0.push(mkCell(0, 0, '金额', COLORS.default))
+  for (let a = 0; a <= amount; a++) row0.push(mkCell(0, a + 1, a, COLORS.default))
+  row0.push(mkCell(1, 0, '初始', COLORS.default))
+  for (let a = 0; a <= amount; a++) row0.push(mkCell(1, a + 1, a === 0 ? 0 : '∞', COLORS.default))
+
   yield {
-    objects: initDP,
-    highlights: [],
-    codeLine: 2,
-    description: `DP 数组初始化：dp[0]=0，其余为无穷大`,
+    objects: row0,
+    codeLine: 1,
+    description: `目标金额=${amount}，硬币面额：[${coins.join(', ')}]，求最小硬币数`,
   }
 
-  for (const c of coins) {
-    for (let i = c; i <= amount; i++) {
-      const prev = dp[i]
-      if (dp[i - c] + 1 < dp[i]) {
-        dp[i] = dp[i - c] + 1
-        choice[i] = c
-      }
+  for (let i = 0; i < coins.length; i++) {
+    const coin = coins[i]
+    const row: CellObject[] = []
 
-      if (prev !== dp[i]) {
-        const stepDP = dp.map((v, j) => {
-          let color = COLORS.default
-          if (j === i) color = COLORS.highlight
-          else if (v === INF) color = COLORS.inactive
-          return mkBar(`dp-${j}`, v === INF ? 0 : v, j, color, j === i ? `dp[${j}]=${v}` : undefined)
-        })
-        yield {
-          objects: stepDP,
-          highlights: [`dp-${i}`],
-          codeLine: 4,
-          description: `面值 ${c}：dp[${i}] = min(dp[${i}], dp[${i - c}] + 1) = ${dp[i]} 枚硬币`,
+    row.push(mkCell(0, 0, '金额', COLORS.default))
+    for (let a = 0; a <= amount; a++) row.push(mkCell(0, a + 1, a, COLORS.default))
+    row.push(mkCell(i + 2, 0, `硬币${coin}`, COLORS.comparing))
+
+    for (let a = 0; a <= amount; a++) {
+      row.push(mkCell(i + 2, a + 1, dp[a] === Infinity ? '∞' : dp[a], COLORS.default))
+    }
+
+    yield {
+      objects: row,
+      codeLine: 4,
+      description: `开始处理硬币面额 ${coin}`,
+    }
+
+    for (let a = coin; a <= amount; a++) {
+      if (dp[a - coin] !== Infinity) {
+        const oldVal = dp[a]
+        dp[a] = Math.min(dp[a], dp[a - coin] + 1)
+
+        if (dp[a] !== oldVal) {
+          const updRow: CellObject[] = []
+          updRow.push(mkCell(0, 0, '金额', COLORS.default))
+          for (let k = 0; k <= amount; k++) updRow.push(mkCell(0, k + 1, k, COLORS.default))
+          updRow.push(mkCell(i + 2, 0, `硬币${coin}`, COLORS.comparing))
+          for (let k = 0; k <= amount; k++) {
+            const color = k === a ? COLORS.highlight : k === a - coin ? COLORS.pivot : COLORS.default
+            updRow.push(mkCell(i + 2, k + 1, dp[k] === Infinity ? '∞' : dp[k], color))
+          }
+
+          yield {
+            objects: updRow,
+            codeLine: 5,
+            description: `使用硬币 ${coin}，金额 ${a} 最小硬币数 = ${dp[a]}（由 ${a - coin} + 1 更新）`,
+          }
         }
       }
     }
+
+    const doneRow: CellObject[] = []
+    doneRow.push(mkCell(0, 0, '金额', COLORS.default))
+    for (let k = 0; k <= amount; k++) doneRow.push(mkCell(0, k + 1, k, COLORS.default))
+    doneRow.push(mkCell(i + 2, 0, `硬币${coin}`, COLORS.sorted))
+    for (let k = 0; k <= amount; k++) {
+      doneRow.push(mkCell(i + 2, k + 1, dp[k] === Infinity ? '∞' : dp[k], COLORS.sorted))
+    }
+
+    yield {
+      objects: doneRow,
+      codeLine: 6,
+      description: `硬币 ${coin} 处理完成`,
+    }
   }
 
-  // 结果
-  const canMake = dp[amount] !== INF
-
-  if (canMake) {
-    // 回溯方案
-    const result: number[] = []
-    let rem = amount
-    while (rem > 0) {
-      result.push(choice[rem])
-      rem -= choice[rem]
-    }
-
-    const resultBars = dp.map((v, j) => {
-      let color = COLORS.default
-      if (v === INF) color = COLORS.inactive
-      else if (j === amount) color = COLORS.sorted
-      return mkBar(
-        `res-${j}`,
-        v === INF ? 0 : v,
-        j,
-        color,
-        j === amount ? `${dp[amount]}枚` : undefined
-      )
-    })
-
-    yield {
-      objects: resultBars,
-      highlights: [`res-${amount}`],
-      codeLine: 7,
-      description: `兑换成功！最少需要 ${dp[amount]} 枚硬币，方案：[${result.join(', ')}]`,
-    }
-  } else {
-    yield {
-      objects: dp.map((v, j) => mkBar(`fail-${j}`, v === INF ? 0 : v, j, COLORS.inactive)),
-      highlights: [],
-      codeLine: 7,
-      description: `无法凑出金额 ${amount}`,
-    }
+  const result = dp[amount] === Infinity ? '无解' : dp[amount].toString()
+  yield {
+    objects: (() => {
+      const cells: CellObject[] = []
+      cells.push(mkCell(0, 0, '金额', COLORS.default))
+      for (let a = 0; a <= amount; a++) cells.push(mkCell(0, a + 1, a, COLORS.default))
+      cells.push(mkCell(1, 0, '结果', COLORS.highlight))
+      for (let a = 0; a <= amount; a++) {
+        cells.push(mkCell(1, a + 1, dp[a] === Infinity ? '∞' : dp[a], a === amount ? COLORS.highlight : COLORS.sorted))
+      }
+      return cells
+    })(),
+    codeLine: 8,
+    description: `最终结果：目标 ${amount} 最少需要 ${result} 枚硬币`,
   }
 }

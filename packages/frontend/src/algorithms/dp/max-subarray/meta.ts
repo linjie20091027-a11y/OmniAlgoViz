@@ -4,7 +4,7 @@ const meta: AlgorithmMeta = {
   id: 'max-subarray',
   title: '最大子数组和',
   category: 'dp',
-  visualizerType: 'bar',
+  visualizerType: 'grid',
   difficulty: 2,
   params: [
     { key: 'size', label: '数组长度', type: 'number', default: 10, min: 5, max: 25, step: 1 },

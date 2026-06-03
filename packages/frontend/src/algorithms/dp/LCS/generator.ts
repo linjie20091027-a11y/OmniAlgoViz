@@ -1,110 +1,112 @@
-import type { Scene, BarObject } from '@vsa/shared'
-import { COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type CellObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
+function mkCell(row: number, col: number, value: string | number, color: string): CellObject {
+  return { kind: 'cell', id: `c-${row}-${col}`, row, col, value, color }
 }
 
-const CHARS = 'ABCDEFGH'
+export default function* lcsGen(params: { size: number }): Generator<Scene> {
+  const len = params.size
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const a = Array.from({ length: len }, () => chars[Math.floor(Math.random() * 26)]).join('')
+  const b = Array.from({ length: len }, () => chars[Math.floor(Math.random() * 26)]).join('')
 
-export default function* lcs(params: { size: number }): Generator<Scene> {
-  const n = params.size
-  const s1 = Array.from({ length: n }, () => CHARS[Math.floor(Math.random() * 8)]).join('')
-  const s2 = Array.from({ length: n }, () => CHARS[Math.floor(Math.random() * 8)]).join('')
+  const m = a.length, n = b.length
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  const dir: string[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(''))
 
-  // 展示字符串 s1
-  const s1Bars: BarObject[] = [...s1].map((ch, i) =>
-    mkBar(`s1-${i}`, ch.charCodeAt(0) - 64, i, COLORS.default, ch)
-  )
   yield {
-    objects: s1Bars,
-    highlights: [],
+    objects: [
+      ...Array.from({ length: m + 1 }, (_, i) =>
+        mkCell(i, 0, i === 0 ? ' ' : a[i - 1], COLORS.default)
+      ),
+      ...Array.from({ length: n + 1 }, (_, j) =>
+        mkCell(0, j, j === 0 ? ' ' : b[j - 1], COLORS.default)
+      ),
+    ],
     codeLine: 1,
-    description: `字符串 S1 = "${s1}"，长度 = ${n}`,
+    description: `字符串 A="${a}"，字符串 B="${b}"，求最长公共子序列`,
   }
 
-  // 切换展示 s2
-  const s2Bars: BarObject[] = [...s2].map((ch, i) =>
-    mkBar(`s2-${i}`, ch.charCodeAt(0) - 64, i, COLORS.comparing, ch)
-  )
-  yield {
-    objects: s2Bars,
-    highlights: [],
-    codeLine: 1,
-    description: `字符串 S2 = "${s2}"，长度 = ${n}`,
-  }
-
-  const m = n
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(m + 1).fill(0))
-
-  // 逐行填充 DP 表
   for (let i = 1; i <= m; i++) {
-    const row: BarObject[] = []
-    for (let j = 0; j <= m; j++) {
-      if (j === 0) {
-        row.push(mkBar(`dp-${i}-${j}`, 0, j, COLORS.inactive))
-      } else {
-        if (s1[i - 1] === s2[j - 1]) {
-          dp[i][j] = dp[i - 1][j - 1] + 1
-        } else {
-          dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1])
+    for (let j = 1; j <= n; j++) {
+      const cells: CellObject[] = []
+
+      cells.push(mkCell(i, 0, a[i - 1], COLORS.comparing))
+      cells.push(mkCell(0, j, b[j - 1], COLORS.comparing))
+
+      for (let ri = 1; ri <= m; ri++) {
+        for (let cj = 1; cj <= n; cj++) {
+          if (ri < i || (ri === i && cj < j)) {
+            cells.push(mkCell(ri, cj, dp[ri][cj], COLORS.sorted))
+          } else if (ri === i && cj === j) {
+            cells.push(mkCell(ri, cj, '?', COLORS.comparing))
+          }
         }
-        let color = COLORS.default
-        if (s1[i - 1] === s2[j - 1]) color = COLORS.highlight
-        row.push(mkBar(`dp-${i}-${j}`, dp[i][j], j, color))
+      }
+
+      yield {
+        objects: cells,
+        codeLine: 4,
+        description: `比较 A[${i}]="${a[i - 1]}" 和 B[${j}]="${b[j - 1]}"`,
+      }
+
+      if (a[i - 1] === b[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1
+        dir[i][j] = '↖'
+      } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+        dp[i][j] = dp[i - 1][j]
+        dir[i][j] = '↑'
+      } else {
+        dp[i][j] = dp[i][j - 1]
+        dir[i][j] = '←'
+      }
+
+      const updateCells: CellObject[] = []
+      for (let ri = 0; ri <= m; ri++) {
+        for (let cj = 0; cj <= n; cj++) {
+          if (ri === i && cj === j) {
+            updateCells.push(mkCell(ri, cj, `${dp[ri][cj]}${dir[ri][cj]}`, COLORS.highlight))
+          } else if ((ri === 0 || cj === 0) && !(ri === 0 && cj === 0)) {
+            updateCells.push(mkCell(ri, cj, ri === 0 ? (cj === 0 ? ' ' : b[cj - 1]) : a[ri - 1], COLORS.default))
+          } else if (ri <= i && cj <= n) {
+            updateCells.push(mkCell(ri, cj, dp[ri][cj] > 0 ? `${dp[ri][cj]}${dir[ri][cj]}` : '', dp[ri][cj] > 0 ? COLORS.sorted : COLORS.default))
+          }
+        }
+      }
+      yield {
+        objects: updateCells,
+        codeLine: 5,
+        description: `dp[${i}][${j}] = ${dp[i][j]} ${dir[i][j]}`,
       }
     }
-
-    yield {
-      objects: row,
-      highlights: [],
-      codeLine: 4,
-      description: `DP 第 ${i} 行：S1[${i - 1}]='${s1[i - 1]}' 与 S2 各字符比较${s1[i - 1] === s2[i - 1] ? '（字符相同！）' : ''}`,
-    }
   }
 
-  // 回溯找 LCS
-  let ci = m, cj = m
-  const lcsChars: string[] = []
-  const trace: { i: number; j: number }[] = []
-
-  while (ci > 0 && cj > 0) {
-    if (s1[ci - 1] === s2[cj - 1]) {
-      lcsChars.push(s1[ci - 1])
-      trace.push({ i: ci, j: cj })
-      ci--
-      cj--
-    } else if (dp[ci - 1][cj] >= dp[ci][cj - 1]) {
-      ci--
+  const lcs: string[] = []
+  let i = m, j = n
+  const pathCells = new Set<string>()
+  while (i > 0 && j > 0) {
+    if (a[i - 1] === b[j - 1]) {
+      lcs.unshift(a[i - 1])
+      pathCells.add(`${i}-${j}`)
+      i--
+      j--
+    } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+      i--
     } else {
-      cj--
+      j--
     }
   }
-  const lcsStr = lcsChars.reverse().join('')
 
-  // 展示 LCS 对应位置
-  const resultBars: BarObject[] = [...s1].map((ch, i) => {
-    const inLcs = lcsStr.includes(ch) && trace.some(t => t.i === i + 1)
-    return mkBar(
-      `res-${i}`,
-      ch.charCodeAt(0) - 64,
-      i,
-      inLcs ? COLORS.sorted : COLORS.inactive,
-      inLcs ? ch : ''
-    )
-  })
-
-  yield {
-    objects: resultBars,
-    highlights: [],
-    codeLine: 10,
-    description: `LCS = "${lcsStr}"，长度 = ${dp[m][m]}，高亮字符为公共子序列`,
+  const finalCells: CellObject[] = []
+  for (let ri = 1; ri <= m; ri++) {
+    for (let cj = 1; cj <= n; cj++) {
+      const color = pathCells.has(`${ri}-${cj}`) ? COLORS.sorted : COLORS.default
+      finalCells.push(mkCell(ri, cj, dp[ri][cj] > 0 ? `${dp[ri][cj]}${dir[ri][cj]}` : '', color))
+    }
   }
-
   yield {
-    objects: dp[m].map((v, j) => mkBar(`final-${j}`, v, j, COLORS.sorted)),
-    highlights: [],
-    codeLine: 10,
-    description: `最终结果：LCS 长度 = ${dp[m][m]}，即 S1 和 S2 的最长公共子序列`,
+    objects: finalCells,
+    codeLine: 8,
+    description: `最长公共子序列："${lcs.join('')}"，长度 = ${lcs.length}`,
   }
 }

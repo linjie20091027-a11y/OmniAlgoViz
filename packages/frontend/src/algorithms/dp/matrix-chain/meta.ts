@@ -4,7 +4,7 @@ const meta: AlgorithmMeta = {
   id: 'matrix-chain',
   title: '矩阵链乘',
   category: 'dp',
-  visualizerType: 'bar',
+  visualizerType: 'grid',
   difficulty: 4,
   params: [
     { key: 'size', label: '矩阵个数', type: 'number', default: 5, min: 3, max: 10, step: 1 },

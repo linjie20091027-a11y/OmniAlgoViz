@@ -1,109 +1,165 @@
-import type { Scene, BarObject } from '@vsa/shared'
-import { COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type TreeNodeObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
+function mkNode(id: string, value: string | number, parentId: string | null, color: string, children: string[] = []): TreeNodeObject {
+  return { kind: 'treeNode', id, value, parentId, children, color }
 }
 
-export default function* idaStar(params: { size: number }): Generator<Scene> {
+export default function* idaStarSearch(params: { size: number }): Generator<Scene> {
   const N = params.size
-  const grid: number[] = Array.from({ length: N }, () => Math.random() < 0.2 ? 1 : 0)
-  const START = 0
-  const END = N - 1
-  grid[0] = grid[N - 1] = 0
+  const grid: number[][] = Array.from({ length: 5 }, () =>
+    Array.from({ length: 5 }, () => (Math.random() < 0.22 ? 1 : 0))
+  )
+  grid[0][0] = 0
+  grid[4][4] = 0
 
-  const heuristic = (pos: number) => Math.abs(END - pos)
+  const START = [0, 0]
+  const END = [4, 4]
+  const dirs = [[0, 1], [1, 0], [0, -1], [-1, 0]]
 
-  const gridBars = (path: number[], cur: number, threshold: number) =>
-    grid.map((v, i) => {
-      let color = v === 1 ? COLORS.inactive : COLORS.default
-      if (i === cur) color = COLORS.comparing
-      if (path.includes(i)) color = COLORS.sorted
-      if (i === START || i === END) color = COLORS.highlight
-      return mkBar(`g-${i}`, v === 1 ? 0 : 5, i, color, `f=${path.length + heuristic(i)}`)
-    })
+  function heuristic(r: number, c: number): number {
+    return Math.abs(r - END[0]) + Math.abs(c - END[1])
+  }
 
-  yield { objects: gridBars([], -1, 0), highlights: [], codeLine: 1, description: `IDA*搜索: 起点=${START}，终点=${END}` }
+  yield {
+    objects: [mkNode('root', `起点(${START[0]},${START[1]}) 阈值`, null, COLORS.highlight)],
+    codeLine: 1,
+    description: `IDA* 迭代加深搜索，起点(${START[0]},${START[1]}) → 终点(${END[0]},${END[1]})`,
+  }
 
-  let threshold = heuristic(START)
-  const path: number[] = [START]
+  let threshold = heuristic(START[0], START[1])
+  let nodeCounter = 0
+  const allNodes: Map<string, TreeNodeObject> = new Map()
+  allNodes.set('root', mkNode('root', `阈值=${threshold}`, null, COLORS.highlight))
   let found = false
 
-  while (!found) {
+  for (let iter = 0; iter < 5 && !found; iter++) {
+    let nextThreshold = Infinity
+    const thresholdNode = mkNode(`threshold-${iter}`, `迭代${iter + 1} 阈值=${threshold}`, 'root', COLORS.pivot)
+    allNodes.set(`threshold-${iter}`, thresholdNode)
+
+    if (allNodes.get('root')!.children.length === 0) {
+      allNodes.get('root')!.children.push(`threshold-${iter}`)
+    }
+
     yield {
-      objects: gridBars(path, path[path.length - 1], threshold),
-      highlights: [],
-      codeLine: 4,
-      description: `当前阈值 threshold = ${threshold}，开始深度优先搜索`,
+      objects: Array.from(allNodes.values()).map(n => ({ ...n, children: [...n.children] })),
+      codeLine: 3,
+      description: `IDA* 迭代 ${iter + 1}：以 threshold=${threshold} 进行深度受限搜索`,
     }
 
-    function* search(node: number, g: number, visited: Set<number>): Generator<Scene, { nextThreshold: number; found: boolean }> {
-      const f = g + heuristic(node)
+    interface DFSResult { found: boolean, nextThreshold: number }
+    function dfs(r: number, c: number, g: number, pid: string): DFSResult {
+      if (visited.has(`${r},${c}`)) return { found: false, nextThreshold: Infinity }
 
-      yield {
-        objects: gridBars(path, node, threshold),
-        highlights: [`g-${node}`],
-        codeLine: 7,
-        description: `访问节点 ${node}，f=${f} (g=${g}, h=${heuristic(node)})，阈值=${threshold}`,
+      const f = g + heuristic(r, c)
+      if (f > threshold) return { found: false, nextThreshold: f }
+
+      visited.add(`${r},${c}`)
+
+      if (r === END[0] && c === END[1]) return { found: true, nextThreshold: threshold }
+
+      let minNext = Infinity
+      for (const [dr, dc] of dirs) {
+        const nr = r + dr, nc = c + dc
+        if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5 && grid[nr][nc] === 0) {
+          const result = dfs(nr, nc, g + 1, pid)
+          if (result.found) return result
+          minNext = Math.min(minNext, result.nextThreshold)
+        }
       }
 
-      if (f > threshold) {
-        return { nextThreshold: f, found: false }
-      }
-      if (node === END) {
-        return { nextThreshold: threshold, found: true }
-      }
-
-      let min = Infinity
-      for (const nxt of [node + 1, node - 1]) {
-        if (nxt < 0 || nxt >= N || grid[nxt] === 1 || visited.has(nxt)) continue
-        visited.add(nxt)
-        path.push(nxt)
-        const result = yield* search(nxt, g + 1, visited)
-        if (result.found) return result
-        min = Math.min(min, result.nextThreshold)
-        path.pop()
-        visited.delete(nxt)
-      }
-      return { nextThreshold: min, found: false }
+      visited.delete(`${r},${c}`)
+      return { found: false, nextThreshold: minNext }
     }
 
-    const visited = new Set<number>()
-    visited.add(START)
-    // 手动迭代生成器以控制步骤
-    const gen = search(START, 0, visited)
-    let nextThr = Infinity
-    let iterCount = 0
+    const visited = new Set<string>()
+    let minNextThresh = Infinity
 
-    while (true) {
-      iterCount++
-      const step = gen.next()
-      if (step.done) {
-        const result = step.value as { nextThreshold: number; found: boolean }
-        nextThr = result.nextThreshold
-        found = result.found
-        break
+    // Manual iterative deepening with scene yields
+    const stack: [number, number, number, string, number][] = [[START[0], START[1], 0, `threshold-${iter}`, 0]]
+    const pathVisited = new Set<string>()
+
+    while (stack.length > 0 && !found && nodeCounter < 30) {
+      const [r, c, g, pid, tried] = stack[stack.length - 1]
+
+      if (tried === 0) {
+        const f = g + heuristic(r, c)
+        if (f > threshold) {
+          stack.pop()
+          pathVisited.delete(`${r},${c}`)
+          minNextThresh = Math.min(minNextThresh, f)
+          continue
+        }
+
+        nodeCounter++
+        const nodeId = `ida-${nodeCounter}`
+        const node = mkNode(nodeId, `(${r},${c}) g=${g} f=${f}`, pid, COLORS.comparing)
+        allNodes.set(nodeId, node)
+        if (allNodes.get(pid)) {
+          allNodes.get(pid)!.children.push(nodeId)
+        }
+
+        yield {
+          objects: Array.from(allNodes.values()).map(n => ({ ...n, children: [...n.children] })),
+          codeLine: 6,
+          description: `IDA* 访问 (${r},${c})：g=${g}, h=${heuristic(r, c)}, f=${f} <= ${threshold}`,
+        }
+
+        if (r === END[0] && c === END[1]) {
+          found = true
+          node.color = COLORS.sorted
+          break
+        }
       }
-      if (iterCount > 100) break
+
+      let expanded = false
+      const dcStart = stack[stack.length - 1][4]
+      for (let d = dcStart; d < dirs.length; d++) {
+        const nr = r + dirs[d][0], nc = c + dirs[d][1]
+        if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5 && grid[nr][nc] === 0 && !pathVisited.has(`${nr},${nc}`)) {
+          pathVisited.add(`${nr},${nc}`)
+          stack[stack.length - 1] = [r, c, g, pid, d + 1]
+          stack.push([nr, nc, g + 1, `ida-${nodeCounter}`, 0])
+          expanded = true
+          break
+        }
+      }
+
+      if (!expanded) {
+        stack.pop()
+        pathVisited.delete(`${r},${c}`)
+      }
     }
 
     if (!found) {
+      const oldThreshold = threshold
+      threshold = minNextThresh
+      if (threshold === Infinity) break
+
       yield {
-        objects: gridBars(path, -1, threshold),
-        highlights: [],
-        codeLine: 14,
-        description: `未找到路径，阈值增加到 ${nextThr}`,
+        objects: Array.from(allNodes.values()).map(n => ({ ...n, children: [...n.children] })),
+        codeLine: 10,
+        description: `阈值 ${oldThreshold} 下未找到解，增大阈值至 ${threshold}`,
       }
-      threshold = nextThr === Infinity ? threshold * 2 : nextThr
     }
   }
 
-  // 展示找到的路径
-  const pathSet = new Set(path)
-  const finalBars = grid.map((v, i) => {
-    let color = v === 1 ? COLORS.inactive : COLORS.default
-    if (pathSet.has(i)) color = COLORS.sorted
-    return mkBar(`g-${i}`, v === 1 ? 0 : 5, i, color, v === 1 ? '#' : String.fromCharCode(65 + i))
-  })
-  yield { objects: finalBars, highlights: path.map(i => `g-${i}`), codeLine: 18, description: found ? `IDA*找到路径: ${path.join(' → ')}` : '未找到' }
+  if (found) {
+    const finalNodes = Array.from(allNodes.values()).map(n => ({
+      ...n,
+      color: n.color === COLORS.comparing ? COLORS.sorted : n.color,
+      children: [...n.children],
+    }))
+    yield {
+      objects: finalNodes,
+      codeLine: 14,
+      description: `IDA* 找到解！最终阈值=${threshold}，共生成 ${allNodes.size} 个搜索树节点`,
+    }
+  } else {
+    yield {
+      objects: Array.from(allNodes.values()).map(n => ({ ...n, children: [...n.children] })),
+      codeLine: 14,
+      description: `IDA* 搜索完成，未找到路径`,
+    }
+  }
 }
