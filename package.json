@@ -1,9 +1,14 @@
 {
   "name": "visual-algo",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "pnpm --filter @vsa/frontend dev",
     "build": "pnpm --filter @vsa/frontend build",
+    "start": "node server.js",
     "backend": "pnpm --filter @vsa/backend dev"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
   }
 }
