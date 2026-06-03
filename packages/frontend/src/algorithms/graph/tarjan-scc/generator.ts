@@ -1,102 +1,111 @@
-import { Scene, BarObject, COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type GraphNodeObject, type GraphEdgeObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
-}
+export default function* tarjanGenerator(params: { size: number }): Generator<Scene> {
+  const n = Math.min(params.size, 8)
+  const adj: number[][] = Array.from({ length: n }, () => [])
 
-export default function* generate(): Generator<Scene> {
-  const size = 6
-  // 有向图邻接表
-  const graph: number[][] = [
-    [1],
-    [2, 4],
-    [3, 0],
-    [5],
-    [5],
-    [4],
-  ]
+  for (let i = 1; i < n; i++) {
+    const parent = Math.floor(Math.random() * i)
+    adj[parent].push(i)
+  }
+  for (let i = 0; i < Math.floor(n * 1.3); i++) {
+    const u = Math.floor(Math.random() * n)
+    const v = Math.floor(Math.random() * n)
+    if (u !== v && !adj[u].includes(v)) adj[u].push(v)
+  }
 
-  let index = 0
-  let time = 0
-  const lowlink: number[] = Array(size).fill(-1)
-  const indexArr: number[] = Array(size).fill(-1)
-  const onStack: boolean[] = Array(size).fill(false)
+  const allEdges: GraphEdgeObject[] = []
+  for (let u = 0; u < n; u++) {
+    for (const v of adj[u]) {
+      allEdges.push({
+        kind: 'graphEdge', id: `e-${u}-${v}`, from: `n-${u}`, to: `n-${v}`,
+        weight: 1, directed: true, color: '#cbd5e1',
+      })
+    }
+  }
+
+  const indexArr: number[] = Array(n).fill(-1)
+  const lowlink: number[] = Array(n).fill(-1)
+  const onStack: boolean[] = Array(n).fill(false)
   const stack: number[] = []
-  const sccId: number[] = Array(size).fill(-1)
+  const sccId: number[] = Array(n).fill(-1)
+  let timer = 0
   let sccCount = 0
 
+  function mkNodes(states: Record<number, string>): GraphNodeObject[] {
+    return Array.from({ length: n }, (_, i) => ({
+      kind: 'graphNode' as const,
+      id: `n-${i}`,
+      label: indexArr[i] === -1 ? `${i}` : `${i}(idx${indexArr[i]},low${lowlink[i]})`,
+      color: states[i] || (sccId[i] !== -1 ? COLORS.sorted : COLORS.default),
+    }))
+  }
+
   yield {
-    description: '初始化：index 数组和 lowlink 数组全部置为 -1，栈为空',
+    objects: [...mkNodes({}), ...allEdges],
     codeLine: 1,
-    objects: indexArr.map((_, i) =>
-      mkBar(`n${i}`, 0, i, '#6b7280', `节点${i}`)
-    ),
+    description: `初始化：${n} 个节点的有向图。index 和 lowlink 均置为 -1`,
   }
 
   function* strongconnect(v: number): Generator<Scene> {
-    indexArr[v] = index
-    lowlink[v] = index
-    index++
+    indexArr[v] = timer
+    lowlink[v] = timer
+    timer++
     stack.push(v)
     onStack[v] = true
 
     yield {
-      description: `访问节点 ${v}：index = ${indexArr[v]}，lowlink = ${lowlink[v]}，压入栈 → [${stack.join(', ')}]`,
+      objects: [
+        ...mkNodes({ [v]: COLORS.comparing }),
+        ...allEdges,
+      ],
       codeLine: 2,
-      objects: indexArr.map((_, i) =>
-        mkBar(`n${i}`, lowlink[i] === -1 ? 0 : lowlink[i] + 1, i,
-          i === v ? '#ef4444' : onStack[i] ? '#3b82f6' : indexArr[i] !== -1 ? '#10b981' : '#6b7280',
-          `节点${i}`)
-      ),
+      description: `访问节点 ${v}：index=${indexArr[v]}，lowlink=${lowlink[v]}，栈：[${stack.join(', ')}]`,
     }
 
-    for (const w of graph[v]) {
+    for (const w of adj[v]) {
       if (indexArr[w] === -1) {
         yield {
-          description: `从节点 ${v} 深入到邻居 ${w}，递归调用 strongconnect(${w})`,
+          objects: [
+            ...mkNodes({ [v]: COLORS.comparing, [w]: COLORS.highlight }),
+            ...allEdges.map(e => (e.from === `n-${v}` && e.to === `n-${w}`) ? { ...e, color: COLORS.highlight } : e),
+          ],
           codeLine: 3,
-          objects: indexArr.map((_, i) =>
-            mkBar(`n${i}`, lowlink[i] === -1 ? 0 : lowlink[i] + 1, i,
-              i === w ? '#f59e0b' : i === v ? '#ef4444' : '#3b82f6',
-              `节点${i}`)
-          ),
+          description: `从节点 ${v} 沿边 (${v}→${w}) 深入，递归调用`,
         }
-
         yield* strongconnect(w)
-
         lowlink[v] = Math.min(lowlink[v], lowlink[w])
+
         yield {
-          description: `回溯到节点 ${v}：lowlink[${v}] = min(${lowlink[v]}, lowlink[${w}] = ${lowlink[w]}) = ${lowlink[v]}`,
+          objects: [
+            ...mkNodes({ [v]: COLORS.comparing }),
+            ...allEdges,
+          ],
           codeLine: 4,
-          objects: indexArr.map((_, i) =>
-            mkBar(`n${i}`, lowlink[i] === -1 ? 0 : lowlink[i] + 1, i,
-              i === v ? '#ef4444' : '#3b82f6',
-              `节点${i}`)
-          ),
+          description: `回溯到 ${v}：lowlink[${v}] = min(${lowlink[v]}, ${lowlink[w]}) = ${lowlink[v]}`,
         }
       } else if (onStack[w]) {
         lowlink[v] = Math.min(lowlink[v], indexArr[w])
+
         yield {
-          description: `节点 ${w} 在栈中（回边），更新 lowlink[${v}] = min(${lowlink[v]}, index[${w}] = ${indexArr[w]}) = ${lowlink[v]}`,
+          objects: [
+            ...mkNodes({ [v]: COLORS.comparing, [w]: COLORS.highlight }),
+            ...allEdges.map(e => (e.from === `n-${v}` && e.to === `n-${w}`) ? { ...e, color: COLORS.highlight } : e),
+          ],
           codeLine: 5,
-          objects: indexArr.map((_, i) =>
-            mkBar(`n${i}`, lowlink[i] === -1 ? 0 : lowlink[i] + 1, i,
-              i === w ? '#f59e0b' : '#3b82f6',
-              `节点${i}`)
-          ),
+          description: `${w} 在栈中（回边），更新 lowlink[${v}] = min(${lowlink[v]}, index[${w}]=${indexArr[w]}) = ${lowlink[v]}`,
         }
       }
     }
 
     if (lowlink[v] === indexArr[v]) {
       yield {
-        description: `节点 ${v} 是 SCC 根节点（lowlink = index = ${lowlink[v]}），开始弹出栈构成第 ${sccCount + 1} 个分量`,
+        objects: [
+          ...mkNodes({ [v]: COLORS.pivot }),
+          ...allEdges,
+        ],
         codeLine: 6,
-        objects: indexArr.map((_, i) =>
-          mkBar(`n${i}`, lowlink[i] === -1 ? 0 : lowlink[i] + 1, i,
-            i === v ? '#ef4444' : onStack[i] ? '#3b82f6' : '#10b981',
-            `节点${i}`)
-        ),
+        description: `节点 ${v} 是 SCC 根（lowlink=index=${lowlink[v]}），开始弹栈构成分量`,
       }
 
       const comp: number[] = []
@@ -111,37 +120,39 @@ export default function* generate(): Generator<Scene> {
       sccCount++
 
       yield {
-        description: `强连通分量 #${sccCount}：[${comp.join(', ')}]。栈剩余：[${stack.join(', ') || '空'}]`,
+        objects: [
+          ...mkNodes(Object.fromEntries(comp.map(c => [c, COLORS.sorted]))),
+          ...allEdges.map(e => {
+            const from = parseInt(e.from.slice(2)), to = parseInt(e.to.slice(2))
+            return sccId[from] === sccId[to] && sccId[from] !== -1 ? { ...e, color: COLORS.sorted } : e
+          }),
+        ],
         codeLine: 7,
-        objects: indexArr.map((_, i) =>
-          mkBar(`n${i}`, sccId[i] + 1, i,
-            sccId[i] !== -1 ? '#10b981' : lowlink[i] !== -1 ? '#3b82f6' : '#6b7280',
-            sccId[i] !== -1 ? `节点${i}(SCC${sccId[i] + 1})` : `节点${i}`)
-        ),
+        description: `SCC #${sccCount}：[${comp.join(', ')}]，栈剩余：[${stack.join(', ') || '空'}]`,
       }
     }
   }
 
-  for (let i = 0; i < size; i++) {
+  for (let i = 0; i < n; i++) {
     if (indexArr[i] === -1) {
       yield {
-        description: `节点 ${i} 尚未访问，从该节点启动 DFS`,
+        objects: [...mkNodes({ [i]: COLORS.highlight }), ...allEdges],
         codeLine: 8,
-        objects: indexArr.map((_, j) =>
-          mkBar(`n${j}`, 0, j,
-            j === i ? '#f59e0b' : indexArr[j] !== -1 ? '#10b981' : '#6b7280',
-            `节点${j}`)
-        ),
+        description: `节点 ${i} 未访问，启动新 DFS`,
       }
       yield* strongconnect(i)
     }
   }
 
   yield {
-    description: `Tarjan 算法完成！共找到 ${sccCount} 个强连通分量`,
+    objects: [
+      ...mkNodes(Object.fromEntries(Array.from({ length: n }, (_, i) => [i, COLORS.sorted]))),
+      ...allEdges.map(e => {
+        const from = parseInt(e.from.slice(2)), to = parseInt(e.to.slice(2))
+        return sccId[from] === sccId[to] ? { ...e, color: COLORS.sorted } : { ...e, color: '#e2e8f0' }
+      }),
+    ],
     codeLine: 9,
-    objects: sccId.map((v, i) =>
-      mkBar(`n${i}`, v + 1, i, '#10b981', `节点${i}(SCC${v + 1})`)
-    ),
+    description: `Tarjan 完成！共 ${sccCount} 个强连通分量`,
   }
 }

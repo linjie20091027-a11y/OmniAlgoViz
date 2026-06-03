@@ -1,129 +1,148 @@
-import { Scene, BarObject, COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type GraphNodeObject, type GraphEdgeObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
-}
+export default function* kruskalGenerator(params: { size: number }): Generator<Scene> {
+  const n = Math.min(params.size, 10)
+  const adj: number[][] = Array.from({ length: n }, () => [])
+  const weight: Record<string, number> = {}
+  const sortedEdges: [number, number, number][] = []
 
-export default function* generate(): Generator<Scene> {
-  const size = 6
-  // 边列表: [from, to, weight]
-  const edges: [number, number, number][] = [
-    [0, 1, 4], [0, 2, 3],
-    [1, 2, 1], [1, 3, 2],
-    [2, 3, 4], [2, 4, 3],
-    [3, 4, 2], [3, 5, 1],
-    [4, 5, 6],
-  ]
+  for (let i = 1; i < n; i++) {
+    const parent = Math.floor(Math.random() * i)
+    adj[parent].push(i)
+    adj[i].push(parent)
+    const key = parent < i ? `${parent}-${i}` : `${i}-${parent}`
+    weight[key] = Math.floor(Math.random() * 9) + 1
+    sortedEdges.push([parent, i, weight[key]])
+  }
+  for (let i = 0; i < Math.floor(n * 1.3); i++) {
+    const u = Math.floor(Math.random() * n)
+    const v = Math.floor(Math.random() * n)
+    if (u !== v && !adj[u].includes(v)) {
+      adj[u].push(v)
+      adj[v].push(u)
+      const key = u < v ? `${u}-${v}` : `${v}-${u}`
+      weight[key] = Math.floor(Math.random() * 9) + 1
+      sortedEdges.push([u, v, weight[key]])
+    }
+  }
+  sortedEdges.sort((a, b) => a[2] - b[2])
 
-  // 按权重排序
-  const sorted = [...edges].sort((a, b) => a[2] - b[2])
+  const edgeSet = new Set<string>()
+  const allEdges: GraphEdgeObject[] = []
+  for (let u = 0; u < n; u++) {
+    for (const v of adj[u]) {
+      const key = u < v ? `${u}-${v}` : `${v}-${u}`
+      if (!edgeSet.has(key)) {
+        edgeSet.add(key)
+        allEdges.push({
+          kind: 'graphEdge', id: `e-${u}-${v}`, from: `n-${u}`, to: `n-${v}`,
+          weight: weight[key], directed: false, color: '#cbd5e1',
+        })
+      }
+    }
+  }
 
-  // DSU
-  const parent = Array.from({ length: size }, (_, i) => i)
-  const rank = Array(size).fill(0)
+  function mkNodes(states: Record<number, string>): GraphNodeObject[] {
+    return Array.from({ length: n }, (_, i) => ({
+      kind: 'graphNode' as const,
+      id: `n-${i}`,
+      label: String(i),
+      color: states[i] || COLORS.default,
+    }))
+  }
+
+  const parent: number[] = Array.from({ length: n }, (_, i) => i)
+  const rank: number[] = Array(n).fill(0)
 
   function find(x: number): number {
-    while (parent[x] !== x) {
-      parent[x] = parent[parent[x]]
-      x = parent[x]
-    }
+    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x] }
     return x
   }
 
   function union(x: number, y: number): boolean {
-    const rx = find(x)
-    const ry = find(y)
+    const rx = find(x), ry = find(y)
     if (rx === ry) return false
-    if (rank[rx] < rank[ry]) {
-      parent[rx] = ry
-    } else if (rank[rx] > rank[ry]) {
-      parent[ry] = rx
-    } else {
-      parent[ry] = rx
-      rank[rx]++
-    }
+    if (rank[rx] < rank[ry]) parent[rx] = ry
+    else if (rank[rx] > rank[ry]) parent[ry] = rx
+    else { parent[ry] = rx; rank[rx]++ }
     return true
   }
 
-  // 组件归属数组：每个节点当前所属组件的代表
-  const compSize = Array(size).fill(1)
-
-  yield {
-    description: '初始化：将每条边按权重从小到大排序。所有节点各自为一个集合（DSU 初始化）',
-    codeLine: 1,
-    objects: sorted.map(([u, v, w], i) =>
-      mkBar(`e${i}`, w * 3, i, '#6b7280', `(${u}-${v}):${w}`)
-    ),
-  }
-
-  yield {
-    description: '按权重排序后的边列表。当前每个节点各自孤立，未选择任何边',
-    codeLine: 2,
-    objects: compSize.map((v, i) =>
-      mkBar(`c${i}`, 1, i, '#3b82f6', `节点${i} `)
-    ),
-  }
-
+  const mstEdges: Set<string> = new Set()
   let mstWeight = 0
   let edgeCount = 0
-  let selectedEdges: string[] = []
 
-  for (let ei = 0; ei < sorted.length; ei++) {
-    const [u, v, w] = sorted[ei]
-    const rootU = find(u)
-    const rootV = find(v)
+  yield {
+    objects: [...mkNodes({}), ...allEdges],
+    codeLine: 1,
+    description: `初始化：${n} 个节点，${sortedEdges.length} 条边。所有边按权重排序`,
+  }
+
+  for (let ei = 0; ei < sortedEdges.length; ei++) {
+    const [u, v, w] = sortedEdges[ei]
+    const ru = find(u), rv = find(v)
 
     yield {
-      description: `检查边 (${u}, ${v}) 权重 ${w}：find(${u}) = ${rootU}，find(${v}) = ${rootV}`,
-      codeLine: 3,
-      objects: compSize.map((_, i) => {
-        const r = find(i)
-        return mkBar(`c${i}`, compSize[r], i,
-          i === u ? '#f59e0b' : i === v ? '#ef4444' : '#3b82f6',
-          `节点${i}`)
-      }),
+      objects: [
+        ...mkNodes({ [u]: COLORS.comparing, [v]: COLORS.comparing }),
+        ...allEdges.map(e => {
+          const from = parseInt(e.from.slice(2)), to = parseInt(e.to.slice(2))
+          if ((from === u && to === v) || (from === v && to === u)) return { ...e, color: COLORS.comparing }
+          if (mstEdges.has(`${from}-${to}`) || mstEdges.has(`${to}-${from}`)) return { ...e, color: COLORS.sorted }
+          return e
+        }),
+      ],
+      codeLine: 2,
+      description: `检查边 (${u},${v}) 权重${w}：find(${u})=${ru}，find(${v})=${rv}`,
     }
 
-    if (rootU !== rootV) {
+    if (ru !== rv) {
       union(u, v)
-      const newRoot = find(u)
-      compSize[newRoot] = compSize[rootU] + compSize[rootV]
+      mstEdges.add(`${u}-${v}`)
+      mstEdges.add(`${v}-${u}`)
       mstWeight += w
       edgeCount++
-      selectedEdges.push(`(${u}-${v})`)
 
       yield {
-        description: `✅ 选择边 (${u}, ${v}) 权重 ${w}。合并集合 ${rootU} 和 ${rootV}，已选边数：${edgeCount}`,
-        codeLine: 4,
-        objects: compSize.map((_, i) => {
-          const r = find(i)
-          return mkBar(`c${i}`, compSize[r], i,
-            r === newRoot ? '#10b981' : '#3b82f6',
-            `节点${i}`)
-        }),
+        objects: [
+          ...mkNodes({ [u]: COLORS.sorted, [v]: COLORS.sorted }),
+          ...allEdges.map(e => {
+            const from = parseInt(e.from.slice(2)), to = parseInt(e.to.slice(2))
+            if (mstEdges.has(`${from}-${to}`)) return { ...e, color: COLORS.sorted }
+            return e
+          }),
+        ],
+        codeLine: 3,
+        description: `选中边 (${u},${v}) 权重${w}，合并集。MST 边数=${edgeCount}`,
       }
 
-      if (edgeCount === size - 1) {
-        break
-      }
+      if (edgeCount === n - 1) break
     } else {
       yield {
-        description: `跳过边 (${u}, ${v})：节点 ${u} 和 ${v} 已在同一集合中（代表 = ${rootU}），选中会形成环`,
-        codeLine: 5,
-        objects: compSize.map((_, i) => {
-          const r = find(i)
-          return mkBar(`c${i}`, compSize[r], i, '#6b7280', `节点${i}`)
-        }),
+        objects: [
+          ...mkNodes({ [u]: COLORS.inactive, [v]: COLORS.inactive }),
+          ...allEdges.map(e => {
+            const from = parseInt(e.from.slice(2)), to = parseInt(e.to.slice(2))
+            if ((from === u && to === v) || (from === v && to === u)) return { ...e, color: COLORS.inactive }
+            if (mstEdges.has(`${from}-${to}`)) return { ...e, color: COLORS.sorted }
+            return e
+          }),
+        ],
+        codeLine: 4,
+        description: `跳过边 (${u},${v})：${u} 和 ${v} 已在同一集合，会形成环`,
       }
     }
   }
 
   yield {
-    description: `Kruskal 算法完成！MST 总权重 = ${mstWeight}，边：${selectedEdges.join(', ')}`,
-    codeLine: 6,
-    objects: compSize.map((_, i) => {
-      const r = find(i)
-      return mkBar(`c${i}`, compSize[r], i, '#10b981', `节点${i}`)
-    }),
+    objects: [
+      ...mkNodes(Object.fromEntries(Array.from({ length: n }, (_, i) => [i, COLORS.sorted]))),
+      ...allEdges.map(e => {
+        const from = parseInt(e.from.slice(2)), to = parseInt(e.to.slice(2))
+        return mstEdges.has(`${from}-${to}`) ? { ...e, color: COLORS.sorted } : { ...e, color: '#e2e8f0' }
+      }),
+    ],
+    codeLine: 5,
+    description: `Kruskal 完成！MST 总权重=${mstWeight}，共 ${n - 1} 条边`,
   }
 }

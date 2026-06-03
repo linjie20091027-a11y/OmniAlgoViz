@@ -1,96 +1,97 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { useMemo, useRef, useEffect, useState } from 'react'
 import type { Scene, BarObject } from '@vsa/shared'
 
-interface Props {
-  scene: Scene
-}
+interface Props { scene: Scene }
 
 export default function BarVisualizer({ scene }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-
   const bars = useMemo(
     () => scene.objects.filter((o): o is BarObject => o.kind === 'bar'),
     [scene.objects]
   )
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [dims, setDims] = useState({ w: 0, h: 0 })
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([e]) => {
+      setDims({ w: e.contentRect.width, h: e.contentRect.height })
+    })
+    ro.observe(el)
+    setDims({ w: el.clientWidth, h: el.clientHeight })
+    return () => ro.disconnect()
+  }, [])
 
-    const parent = canvas.parentElement!
-    const dpr = window.devicePixelRatio || 1
-    canvas.width = parent.clientWidth * dpr
-    canvas.height = parent.clientHeight * dpr
-    canvas.style.width = parent.clientWidth + 'px'
-    canvas.style.height = parent.clientHeight + 'px'
+  const w = dims.w
+  const h = dims.h
+  const n = bars.length
+  const padding = 32
 
-    const ctx = canvas.getContext('2d')!
-    ctx.scale(dpr, dpr)
-    ctx.clearRect(0, 0, parent.clientWidth, parent.clientHeight)
+  if (n === 0 || w === 0) {
+    return <div ref={containerRef} className="w-full h-full" />
+  }
 
-    const w = parent.clientWidth
-    const h = parent.clientHeight
-    const n = bars.length
-    const padding = 32
-
-    if (n === 0) return
-
-    const availW = w - padding * 2
-    const availH = h - padding * 2 - 40 // 底部留标签空间
-    const barGap = 4
-    const totalGap = (n - 1) * barGap
-    const barWidth = Math.min((availW - totalGap) / n, 60)
-
-    const maxVal = Math.max(...bars.map(b => b.value))
-    const scaleY = availH / (maxVal || 1)
-
-    const startX = (w - (barWidth * n + totalGap)) / 2
-
-    for (let i = 0; i < bars.length; i++) {
-      const bar = bars[i]
-      const x = startX + i * (barWidth + barGap)
-      const barH = Math.max(bar.value * scaleY, 4)
-      const y = h - padding - barH - 40
-      const radius = Math.min(barWidth / 2, 8)
-
-      // 绘制柱子
-      ctx.beginPath()
-      ctx.moveTo(x + radius, y)
-      ctx.lineTo(x + barWidth - radius, y)
-      ctx.quadraticCurveTo(x + barWidth, y, x + barWidth, y + radius)
-      ctx.lineTo(x + barWidth, y + barH)
-      ctx.lineTo(x, y + barH)
-      ctx.lineTo(x, y + radius)
-      ctx.quadraticCurveTo(x, y, x + radius, y)
-      ctx.closePath()
-      ctx.fillStyle = bar.color
-      ctx.fill()
-
-      // 高亮描边
-      if (scene.highlights?.includes(bar.id)) {
-        ctx.strokeStyle = '#fbbf24'
-        ctx.lineWidth = 2.5
-        ctx.stroke()
-      }
-
-      // 数值标签
-      ctx.fillStyle = '#64748b'
-      ctx.font = `${Math.min(barWidth * 0.7, 12)}px 'JetBrains Mono', monospace`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'top'
-      ctx.fillText(String(bar.value), x + barWidth / 2, y + barH + 6)
-
-      // 索引标签
-      ctx.fillStyle = '#94a3b8'
-      ctx.font = '10px Inter, sans-serif'
-      ctx.fillText(String(i), x + barWidth / 2, h - 16)
-    }
-  }, [bars, scene.highlights])
+  const availW = w - padding * 2
+  const availH = h - padding * 2 - 50
+  const barGap = 4
+  const totalGap = (n - 1) * barGap
+  const barWidth = Math.min((availW - totalGap) / n, 60)
+  const maxVal = Math.max(...bars.map(b => b.value), 1)
+  const startX = (w - (barWidth * n + totalGap)) / 2
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="w-full h-full"
-    />
+    <div ref={containerRef} className="w-full h-full overflow-hidden">
+      {bars.map((bar, i) => {
+        const barHeight = Math.max((bar.value / maxVal) * availH, 4)
+        const x = startX + i * (barWidth + barGap)
+        const y = h - padding - barHeight - 40
+        const isHighlight = scene.highlights?.includes(bar.id)
+
+        return (
+          <div key={bar.id} className="absolute" style={{ left: x, top: y }}>
+            {/* 数值标签 */}
+            <div
+              className="absolute text-center font-mono transition-all duration-300"
+              style={{
+                width: barWidth,
+                bottom: barHeight + 4,
+                fontSize: Math.min(barWidth * 0.7, 12),
+                color: '#64748b',
+                lineHeight: 1,
+              }}
+            >
+              {bar.value}
+            </div>
+
+            {/* 柱子 */}
+            <div
+              className="rounded-t-lg transition-all duration-300 ease-out"
+              style={{
+                width: barWidth,
+                height: barHeight,
+                background: bar.color,
+                boxShadow: isHighlight
+                  ? '0 0 12px rgba(251, 191, 36, 0.5), inset 0 0 0 2px rgba(251, 191, 36, 0.8)'
+                  : '0 2px 4px rgba(0,0,0,0.06)',
+              }}
+            />
+
+            {/* 索引标签 */}
+            <div
+              className="absolute text-center transition-all duration-300"
+              style={{
+                width: barWidth,
+                top: barHeight + 6,
+                fontSize: 10,
+                color: '#94a3b8',
+                lineHeight: 1,
+              }}
+            >
+              {i}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }

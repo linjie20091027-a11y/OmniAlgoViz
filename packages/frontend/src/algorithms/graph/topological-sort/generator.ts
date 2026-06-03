@@ -1,116 +1,137 @@
-import { Scene, BarObject, COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type GraphNodeObject, type GraphEdgeObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
-}
+export default function* topologicalSortGenerator(params: { size: number }): Generator<Scene> {
+  const n = Math.min(params.size, 10)
+  const adj: number[][] = Array.from({ length: n }, () => [])
+  const indegree: number[] = Array(n).fill(0)
 
-export default function* generate(): Generator<Scene> {
-  const size = 6
-  // 有向无环图邻接表
-  const graph: number[][] = [
-    [1, 2],
-    [3, 4],
-    [3],
-    [5],
-    [5],
-    [],
-  ]
-
-  // 计算入度
-  let indegree: number[] = Array(size).fill(0)
-  for (let u = 0; u < size; u++) {
-    for (const v of graph[u]) {
+  for (let i = 1; i < n; i++) {
+    const from = Math.floor(Math.random() * i)
+    adj[from].push(i)
+    indegree[i]++
+  }
+  for (let i = 0; i < Math.floor(n * 1.2); i++) {
+    const u = Math.floor(Math.random() * n)
+    const v = Math.floor(Math.random() * n)
+    if (u !== v && !adj[u].includes(v) && v > u) {
+      adj[u].push(v)
       indegree[v]++
     }
   }
 
-  yield {
-    description: '初始化：计算每个节点的入度。入度为 0 的节点可以作为拓扑排序的起点',
-    codeLine: 1,
-    objects: indegree.map((v, i) =>
-      mkBar(`n${i}`, v * 5, i, '#3b82f6', `节点${i}(入度:${v})`)
-    ),
+  const allEdges: GraphEdgeObject[] = []
+  for (let u = 0; u < n; u++) {
+    for (const v of adj[u]) {
+      allEdges.push({
+        kind: 'graphEdge', id: `e-${u}-${v}`, from: `n-${u}`, to: `n-${v}`,
+        weight: 1, directed: true, color: '#cbd5e1',
+      })
+    }
   }
 
-  // 找出所有入度为 0 的节点
+  function mkNodes(states: Record<number, string>): GraphNodeObject[] {
+    return Array.from({ length: n }, (_, i) => ({
+      kind: 'graphNode' as const,
+      id: `n-${i}`,
+      label: `${i}(入度${indegree[i]})`,
+      color: states[i] || COLORS.default,
+    }))
+  }
+
+  yield {
+    objects: [...mkNodes({}), ...allEdges],
+    codeLine: 1,
+    description: `初始化：计算每个节点入度。${n} 个节点的有向无环图`,
+  }
+
   const queue: number[] = []
-  for (let i = 0; i < size; i++) {
+  for (let i = 0; i < n; i++) {
     if (indegree[i] === 0) queue.push(i)
   }
 
   yield {
-    description: `入度为 0 的节点加入队列：[${queue.join(', ')}]。这些节点可以立即输出`,
+    objects: [...mkNodes(Object.fromEntries(queue.map(q => [q, COLORS.sorted]))), ...allEdges],
     codeLine: 2,
-    objects: indegree.map((v, i) =>
-      mkBar(`n${i}`, v * 5, i,
-        v === 0 ? '#10b981' : '#3b82f6',
-        `节点${i}(入度:${v})`)
-    ),
+    description: `入度为 0 的节点加入队列：[${queue.join(', ')}]`,
   }
 
-  let result: number[] = []
-  let order = 0
+  const result: number[] = []
 
   while (queue.length > 0) {
     const u = queue.shift()!
     result.push(u)
-    order++
 
     yield {
-      description: `从队列取出节点 ${u}，输出到排序结果 [${result.join(', ')}]（第 ${order} 个）`,
+      objects: [
+        ...mkNodes(Object.fromEntries([
+          ...result.map(r => [r, COLORS.sorted] as const),
+          ...queue.map(q => [q, COLORS.pivot] as const),
+        ])),
+        ...allEdges.map(e => {
+          const from = parseInt(e.from.slice(2))
+          return result.includes(from) ? { ...e, color: COLORS.inactive } : e
+        }),
+      ],
       codeLine: 3,
-      objects: indegree.map((v, i) =>
-        mkBar(`n${i}`, v * 5, i,
-          i === u ? '#ef4444' : i === 0 && result.includes(i) ? '#10b981' : v === 0 ? '#10b981' : '#3b82f6',
-          result.includes(i) ? `节点${i}(✓)` : `节点${i}(入度:${v})`)
-      ),
+      description: `取出节点 ${u}，输出排序：[${result.join(' → ')}]`,
     }
 
-    for (const v of graph[u]) {
+    for (const v of adj[u]) {
       indegree[v]--
 
       yield {
-        description: `删除节点 ${u} 的出边 (${u} → ${v})，节点 ${v} 入度减 1：${indegree[v] + 1} → ${indegree[v]}`,
+        objects: [
+          ...mkNodes({
+            [u]: COLORS.sorted,
+            [v]: COLORS.highlight,
+            ...Object.fromEntries(result.map(r => [r, COLORS.sorted])),
+          }),
+          ...allEdges.map(e => {
+            if (e.from === `n-${u}` && e.to === `n-${v}`) return { ...e, color: COLORS.highlight }
+            const from = parseInt(e.from.slice(2))
+            return result.includes(from) ? { ...e, color: COLORS.inactive } : e
+          }),
+        ],
         codeLine: 4,
-        objects: indegree.map((d, i) =>
-          mkBar(`n${i}`, d * 5, i,
-            i === v ? '#f59e0b' : result.includes(i) ? '#10b981' : '#3b82f6',
-            `节点${i}(入度:${d})`)
-        ),
+        description: `删除边 (${u}→${v})，节点 ${v} 入度减一：${indegree[v]}`,
       }
 
       if (indegree[v] === 0) {
         queue.push(v)
 
         yield {
-          description: `节点 ${v} 入度降为 0，加入队列 → [${queue.join(', ')}]`,
+          objects: [
+            ...mkNodes(Object.fromEntries([
+              ...result.map(r => [r, COLORS.sorted] as const),
+              ...queue.map(q => [q, COLORS.pivot] as const),
+              [v, COLORS.sorted],
+            ])),
+            ...allEdges.map(e => {
+              const from = parseInt(e.from.slice(2))
+              return result.includes(from) ? { ...e, color: COLORS.inactive } : e
+            }),
+          ],
           codeLine: 5,
-          objects: indegree.map((d, i) =>
-            mkBar(`n${i}`, d * 5, i,
-              d === 0 ? '#10b981' : result.includes(i) ? '#10b981' : '#3b82f6',
-              `节点${i}(入度:${d})`)
-          ),
+          description: `节点 ${v} 入度为 0，加入队列：[${queue.join(', ')}]`,
         }
       }
     }
   }
 
-  if (result.length < size) {
+  if (result.length < n) {
     yield {
-      description: '图中存在环！拓扑排序无法完成（剩余节点入度均不为 0）',
+      objects: [...mkNodes(Object.fromEntries(Array.from({ length: n }, (_, i) => [i, COLORS.swapping]))), ...allEdges],
       codeLine: 6,
-      objects: indegree.map((v, i) =>
-        mkBar(`n${i}`, v * 5, i, '#ef4444', `节点${i}`)
-      ),
+      description: '图中存在环！拓扑排序无法完成',
     }
   } else {
     yield {
+      objects: [
+        ...mkNodes(Object.fromEntries(Array.from({ length: n }, (_, i) => [i, COLORS.sorted]))),
+        ...allEdges.map(() => ({ kind: 'graphEdge' as const, id: '', from: '', to: '', weight: 1, directed: true, color: COLORS.inactive })),
+      ],
+      codeLine: 6,
       description: `拓扑排序完成！结果：[${result.join(' → ')}]`,
-      codeLine: 7,
-      objects: indegree.map((_, i) =>
-        mkBar(`n${i}`, result.indexOf(i) + 1, i, '#10b981',
-          `节点${i}(第${result.indexOf(i) + 1}个)`)
-      ),
     }
   }
 }

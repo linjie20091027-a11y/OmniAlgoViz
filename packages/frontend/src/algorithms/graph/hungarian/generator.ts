@@ -1,34 +1,55 @@
-import { Scene, BarObject, COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type GraphNodeObject, type GraphEdgeObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
-}
+export default function* hungarianGenerator(params: { size: number }): Generator<Scene> {
+  const leftN = Math.min(params.size, 6)
+  const rightN = leftN
+  const totalN = leftN + rightN
+  const adj: number[][] = Array.from({ length: leftN }, () => [])
 
-export default function* generate(): Generator<Scene> {
-  // 二分图左右各 4 个节点
-  const leftSize = 4
-  const rightSize = 4
-  const adj: number[][] = [
-    [0, 1],
-    [0, 2],
-    [1],
-    [2, 3],
-  ]
+  for (let i = 0; i < leftN; i++) {
+    for (let j = 0; j < rightN; j++) {
+      if (Math.random() < 0.5 || (i === j && Math.random() < 0.7)) adj[i].push(j)
+    }
+    if (adj[i].length === 0) adj[i].push(i % rightN)
+  }
 
-  let matchL: number[] = Array(leftSize).fill(-1)  // 左->右匹配
-  let matchR: number[] = Array(rightSize).fill(-1)  // 右->左匹配
+  const allEdges: GraphEdgeObject[] = []
+  for (let u = 0; u < leftN; u++) {
+    for (const v of adj[u]) {
+      allEdges.push({
+        kind: 'graphEdge', id: `e-${u}-${v + leftN}`, from: `n-${u}`, to: `n-${v + leftN}`,
+        weight: 1, directed: false, color: '#cbd5e1',
+      })
+    }
+  }
+
+  const matchL: number[] = Array(leftN).fill(-1)
+  const matchR: number[] = Array(rightN).fill(-1)
   let totalMatch = 0
 
+  function mkNodes(states: Record<number, string>): GraphNodeObject[] {
+    const nodes: GraphNodeObject[] = []
+    for (let i = 0; i < leftN; i++) {
+      const lbl = matchL[i] !== -1 ? `L${i}↔R${matchL[i]}` : `L${i}`
+      nodes.push({
+        kind: 'graphNode' as const, id: `n-${i}`, label: lbl,
+        color: states[i] || (matchL[i] !== -1 ? COLORS.sorted : COLORS.default),
+      })
+    }
+    for (let j = 0; j < rightN; j++) {
+      const lbl = matchR[j] !== -1 ? `R${j}↔L${matchR[j]}` : `R${j}`
+      nodes.push({
+        kind: 'graphNode' as const, id: `n-${j + leftN}`, label: lbl,
+        color: states[j + leftN] || (matchR[j] !== -1 ? COLORS.sorted : COLORS.selected),
+      })
+    }
+    return nodes
+  }
+
   yield {
-    description: '初始化：左部 4 个节点，右部 4 个节点。matchL 和 matchR 全部置为 -1（未匹配）',
+    objects: [...mkNodes({}), ...allEdges],
     codeLine: 1,
-    objects: matchL.map((_, i) =>
-      mkBar(`L${i}`, 0, i, '#6b7280', `左${i}`)
-    ).concat(
-      matchR.map((_, i) =>
-        mkBar(`R${i}`, 0, i + leftSize, '#9ca3af', `右${i}`)
-      )
-    ),
+    description: `二分图：左部 ${leftN} 个节点，右部 ${rightN} 个节点，初始均未匹配`,
   }
 
   function* dfs(u: number, visited: boolean[]): Generator<Scene, boolean> {
@@ -37,19 +58,14 @@ export default function* generate(): Generator<Scene> {
       visited[v] = true
 
       yield {
-        description: `尝试为左部节点 ${u} 匹配右部节点 ${v}（标记 ${v} 为已访问）`,
+        objects: [
+          ...mkNodes({ [u]: COLORS.comparing, [v + leftN]: COLORS.highlight }),
+          ...allEdges.map(e =>
+            e.from === `n-${u}` && e.to === `n-${v + leftN}` ? { ...e, color: COLORS.highlight } : e
+          ),
+        ],
         codeLine: 2,
-        objects: matchL.map((m, i) =>
-          mkBar(`L${i}`, m === -1 ? 0 : m + 1, i,
-            i === u ? '#ef4444' : m !== -1 ? '#10b981' : '#6b7280',
-            m === -1 ? `左${i}` : `左${i}→右${m}`)
-        ).concat(
-          matchR.map((m, i) =>
-            mkBar(`R${i}`, m === -1 ? 0 : m + 1, i + leftSize,
-              i === v ? '#f59e0b' : '#9ca3af',
-              m === -1 ? `右${i}` : `右${i}←左${m}`)
-          )
-        ),
+        description: `尝试匹配 L${u} → R${v}`,
       }
 
       if (matchR[v] === -1) {
@@ -57,118 +73,78 @@ export default function* generate(): Generator<Scene> {
         matchR[v] = u
 
         yield {
-          description: `右部节点 ${v} 尚未匹配！直接匹配：左${u} ↔ 右${v}`,
+          objects: [
+            ...mkNodes({ [u]: COLORS.sorted, [v + leftN]: COLORS.sorted }),
+            ...allEdges.map(e => {
+              const toIdx = parseInt(e.to.slice(2))
+              return e.from === `n-${u}` && matchL[u] === toIdx - leftN ? { ...e, color: COLORS.sorted } : e
+            }),
+          ],
           codeLine: 3,
-          objects: matchL.map((m, i) =>
-            mkBar(`L${i}`, m === -1 ? 0 : m + 1, i,
-              m !== -1 ? '#10b981' : '#6b7280',
-              m === -1 ? `左${i}` : `左${i}→右${m}`)
-          ).concat(
-            matchR.map((m, i) =>
-              mkBar(`R${i}`, m === -1 ? 0 : m + 1, i + leftSize,
-                m !== -1 ? '#10b981' : '#9ca3af',
-                m === -1 ? `右${i}` : `右${i}←左${m}`)
-            )
-          ),
+          description: `R${v} 未匹配，直接匹配 L${u} ↔ R${v}`,
         }
         return true
-      } else {
-        const prevU = matchR[v]
+      }
+
+      const prevU = matchR[v]
+
+      yield {
+        objects: [
+          ...mkNodes({ [u]: COLORS.comparing, [v + leftN]: COLORS.highlight, [prevU]: COLORS.pivot }),
+          ...allEdges.map(e =>
+            e.from === `n-${prevU}` && e.to === `n-${v + leftN}` ? { ...e, color: COLORS.pivot } : e
+          ),
+        ],
+        codeLine: 4,
+        description: `R${v} 已被 L${prevU} 匹配，尝试为 L${prevU} 寻找新匹配`,
+      }
+
+      if (yield* dfs(prevU, visited)) {
+        matchL[u] = v
+        matchR[v] = u
 
         yield {
-          description: `右部节点 ${v} 已被左部节点 ${prevU} 匹配。尝试为 ${prevU} 寻找新匹配`,
-          codeLine: 4,
-          objects: matchL.map((m, i) =>
-            mkBar(`L${i}`, m === -1 ? 0 : m + 1, i,
-              i === prevU ? '#f59e0b' : m !== -1 ? '#3b82f6' : '#6b7280',
-              `左${i}`)
-          ).concat(
-            matchR.map((m, i) =>
-              mkBar(`R${i}`, m === -1 ? 0 : m + 1, i + leftSize,
-                '#9ca3af', `右${i}`)
-            )
-          ),
+          objects: [
+            ...mkNodes({ [u]: COLORS.sorted, [v + leftN]: COLORS.sorted }),
+            ...allEdges.map(e => {
+              const toIdx = parseInt(e.to.slice(2))
+              return e.from === `n-${u}` && matchL[u] === toIdx - leftN ? { ...e, color: COLORS.sorted } : e
+            }),
+          ],
+          codeLine: 5,
+          description: `增广成功！更新 L${u} ↔ R${v}`,
         }
-
-        const found = yield* dfs(prevU, visited)
-        if (found) {
-          matchL[u] = v
-          matchR[v] = u
-
-          yield {
-            description: `为 ${prevU} 找到新匹配！更新：左${u} ↔ 右${v}`,
-            codeLine: 5,
-            objects: matchL.map((m, i) =>
-              mkBar(`L${i}`, m === -1 ? 0 : m + 1, i,
-                m !== -1 ? '#10b981' : '#6b7280',
-                m === -1 ? `左${i}` : `左${i}→右${m}`)
-            ).concat(
-              matchR.map((m, i) =>
-                mkBar(`R${i}`, m === -1 ? 0 : m + 1, i + leftSize,
-                  m !== -1 ? '#10b981' : '#9ca3af',
-                  m === -1 ? `右${i}` : `右${i}←左${m}`)
-              )
-            ),
-          }
-          return true
-        }
+        return true
       }
-    }
-
-    yield {
-      description: `左部节点 ${u} 无法匹配任何右部节点，匹配失败`,
-      codeLine: 6,
-      objects: matchL.map((m, i) =>
-        mkBar(`L${i}`, m === -1 ? 0 : m + 1, i,
-          i === u ? '#ef4444' : m !== -1 ? '#10b981' : '#6b7280',
-          `左${i}`)
-      ).concat(
-        matchR.map((m, i) =>
-          mkBar(`R${i}`, m === -1 ? 0 : m + 1, i + leftSize,
-            '#9ca3af', `右${i}`)
-        )
-      ),
     }
     return false
   }
 
-  for (let u = 0; u < leftSize; u++) {
-    if (matchL[u] === -1) {
-      const visited = Array(rightSize).fill(false)
+  for (let u = 0; u < leftN; u++) {
+    const visited = Array(rightN).fill(false)
 
-      yield {
-        description: `为左部节点 ${u} 启动增广路搜索`,
-        codeLine: 7,
-        objects: matchL.map((m, i) =>
-          mkBar(`L${i}`, m === -1 ? 0 : m + 1, i,
-            i === u ? '#f59e0b' : m !== -1 ? '#10b981' : '#6b7280',
-            `左${i}`)
-        ).concat(
-          matchR.map((m, i) =>
-            mkBar(`R${i}`, m === -1 ? 0 : m + 1, i + leftSize,
-              '#9ca3af', `右${i}`)
-          )
-        ),
-      }
-
-      const found = yield* dfs(u, visited)
-      if (found) totalMatch++
+    yield {
+      objects: [
+        ...mkNodes({ [u]: COLORS.highlight }),
+        ...allEdges,
+      ],
+      codeLine: 6,
+      description: `为 L${u} 启动增广路搜索`,
     }
+
+    if (yield* dfs(u, visited)) totalMatch++
   }
 
   yield {
-    description: `匈牙利算法完成！最大匹配数 = ${totalMatch}，匹配对：${matchL.map((m, i) => m !== -1 ? `左${i}↔右${m}` : '').filter(Boolean).join(', ')}`,
-    codeLine: 8,
-    objects: matchL.map((m, i) =>
-      mkBar(`L${i}`, m === -1 ? 0 : m + 1, i,
-        m !== -1 ? '#10b981' : '#6b7280',
-        m === -1 ? `左${i}(未匹配)` : `左${i}↔右${m}`)
-    ).concat(
-      matchR.map((m, i) =>
-        mkBar(`R${i}`, m === -1 ? 0 : m + 1, i + leftSize,
-          m !== -1 ? '#10b981' : '#9ca3af',
-          m === -1 ? `右${i}(未匹配)` : `右${i}↔左${m}`)
-      )
-    ),
+    objects: [
+      ...mkNodes({}),
+      ...allEdges.map(e => {
+        const toIdx = parseInt(e.to.slice(2))
+        const lIdx = parseInt(e.from.slice(2))
+        return matchL[lIdx] === toIdx - leftN ? { ...e, color: COLORS.sorted } : { ...e, color: '#e2e8f0' }
+      }),
+    ],
+    codeLine: 7,
+    description: `匈牙利算法完成！最大匹配数 = ${totalMatch}`,
   }
 }

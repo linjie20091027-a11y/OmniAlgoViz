@@ -1,153 +1,200 @@
-import { Scene, BarObject, COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type GraphNodeObject, type GraphEdgeObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
-}
+export default function* mstGenerator(params: { size: number }): Generator<Scene> {
+  const n = Math.min(params.size, 8)
+  const adj: [number, number][][] = Array.from({ length: n }, () => [])
+  const weight: Record<string, number> = {}
+  const allSortedEdges: [number, number, number][] = []
 
-export default function* generate(): Generator<Scene> {
-  const N = 6
-  // 边列表: [from, to, weight]
-  const edges: [number, number, number][] = [
-    [0, 1, 4], [0, 2, 3],
-    [1, 2, 1], [1, 3, 2],
-    [2, 3, 4], [2, 4, 3],
-    [3, 4, 2], [3, 5, 1],
-    [4, 5, 6],
-  ]
+  for (let i = 1; i < n; i++) {
+    const parent = Math.floor(Math.random() * i)
+    adj[parent].push([i, Math.floor(Math.random() * 9) + 1])
+    adj[i].push([parent, weight[`${parent}-${i}`]])
+    const w = adj[parent][adj[parent].length - 1][1]
+    const key = parent < i ? `${parent}-${i}` : `${i}-${parent}`
+    weight[key] = w
+    allSortedEdges.push([parent, i, w])
+  }
+  for (let i = 0; i < Math.floor(n * 1.2); i++) {
+    const u = Math.floor(Math.random() * n)
+    const v = Math.floor(Math.random() * n)
+    if (u !== v && !adj[u].some(([t]) => t === v)) {
+      const w = Math.floor(Math.random() * 9) + 1
+      adj[u].push([v, w])
+      adj[v].push([u, w])
+      const key = u < v ? `${u}-${v}` : `${v}-${u}`
+      weight[key] = w
+      allSortedEdges.push([u, v, w])
+    }
+  }
+  allSortedEdges.sort((a, b) => a[2] - b[2])
 
-  // 构建邻接表
-  const adj: [number, number][][] = Array.from({ length: N }, () => [])
-  for (const [u, v, w] of edges) {
-    adj[u].push([v, w])
-    adj[v].push([u, w])
+  const edgeSet = new Set<string>()
+  const allEdges: GraphEdgeObject[] = []
+  for (let u = 0; u < n; u++) {
+    for (const [v, w] of adj[u]) {
+      const key = u < v ? `${u}-${v}` : `${v}-${u}`
+      if (!edgeSet.has(key)) {
+        edgeSet.add(key)
+        allEdges.push({
+          kind: 'graphEdge', id: `e-${u}-${v}`, from: `n-${u}`, to: `n-${v}`,
+          weight: w, directed: false, color: '#cbd5e1',
+        })
+      }
+    }
+  }
+
+  function mkNodes(states: Record<number, string>, prefix: string = ''): GraphNodeObject[] {
+    return Array.from({ length: n }, (_, i) => ({
+      kind: 'graphNode' as const,
+      id: `n-${i}`,
+      label: `${prefix}${i}`,
+      color: states[i] || COLORS.default,
+    }))
   }
 
   yield {
-    description: '给定一个加权连通无向图，含 6 个节点、9 条边。分别用 Kruskal 和 Prim 求 MST，比较两步差异',
+    objects: [...mkNodes({}), ...allEdges],
     codeLine: 1,
-    objects: Array.from({ length: N }, (_, i) =>
-      mkBar(`n${i}`, 0, i, '#6b7280', `节点${i}`)
-    ),
+    description: `加权连通图：${n} 个节点，${allEdges.length} 条边。分别用 Kruskal 和 Prim 求 MST`,
   }
 
-  // ============ Kruskal ============
   yield {
-    description: '【Kruskal 策略】将所有边按权重排序，用并查集逐条检查，不形成环则选中',
+    objects: [
+      ...mkNodes({}),
+      ...allEdges.map(e => ({ ...e, color: '#8b5cf6' })),
+    ],
     codeLine: 2,
-    objects: edges.map(([u, v, w], i) =>
-      mkBar(`ek${i}`, w * 3, i, '#8b5cf6', `边${i}(${u}-${v}):${w}`)
-    ),
+    description: '【Kruskal 策略】边按权重排序，用并查集逐条检查，不形成环则选中',
   }
 
   {
-    const sorted = [...edges].sort((a, b) => a[2] - b[2])
-    const parent = Array.from({ length: N }, (_, i) => i)
-    function find(x: number): number {
-      while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x] }
-      return x
+    const parent: number[] = Array.from({ length: n }, (_, i) => i)
+    const rank: number[] = Array(n).fill(0)
+    function find(x: number): number { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x] } return x }
+    function union(x: number, y: number): boolean {
+      const rx = find(x), ry = find(y); if (rx === ry) return false
+      if (rank[rx] < rank[ry]) parent[rx] = ry; else if (rank[rx] > rank[ry]) parent[ry] = rx; else { parent[ry] = rx; rank[rx]++ }
+      return true
     }
-    let kEdgeCount = 0
+
+    const kruskalMST = new Set<string>()
     let kWeight = 0
 
-    for (const [u, v, w] of sorted) {
-      const ru = find(u)
-      const rv = find(v)
-      if (ru !== rv) {
-        parent[ru] = rv
-        kEdgeCount++
+    for (const [u, v, w] of allSortedEdges) {
+      if (union(u, v)) {
+        kruskalMST.add(`${u}-${v}`)
+        kruskalMST.add(`${v}-${u}`)
         kWeight += w
 
         yield {
-          description: `[Kruskal] 选中边 (${u}, ${v}) 权重 ${w}。累计边数 = ${kEdgeCount}，累计权重 = ${kWeight}`,
+          objects: [
+            ...mkNodes({ [u]: COLORS.comparing, [v]: COLORS.comparing }),
+            ...allEdges.map(e => {
+              const f = parseInt(e.from.slice(2)), t = parseInt(e.to.slice(2))
+              return kruskalMST.has(`${f}-${t}`) ? { ...e, color: '#8b5cf6' } : e
+            }),
+          ],
           codeLine: 3,
-          objects: Array.from({ length: N }, (_, i) => {
-            const r = find(i)
-            return mkBar(`nk${i}`, r + 1, i,
-              find(i) === find(0) ? '#8b5cf6' : '#6b7280', `节点${i}`)
-          }),
+          description: `[Kruskal] 选中边 (${u},${v}) 权重${w}，累计=${kWeight}`,
         }
       }
     }
 
     yield {
-      description: `[Kruskal 完成] MST 总权重 = ${kWeight}，共 ${kEdgeCount} 条边`,
+      objects: [
+        ...mkNodes(Object.fromEntries(Array.from({ length: n }, (_, i) => [i, COLORS.sorted]))),
+        ...allEdges.map(e => {
+          const f = parseInt(e.from.slice(2)), t = parseInt(e.to.slice(2))
+          return kruskalMST.has(`${f}-${t}`) ? { ...e, color: '#8b5cf6' } : { ...e, color: '#e2e8f0' }
+        }),
+      ],
       codeLine: 4,
-      objects: Array.from({ length: N }, (_, i) =>
-        mkBar(`nk${i}`, 1, i, '#8b5cf6', `节点${i}`)
-      ),
+      description: `[Kruskal 完成] MST 总权重=${kWeight}`,
     }
   }
 
-  // ============ Prim ============
   yield {
-    description: '【Prim 策略】从节点 0 开始，每次选择与已选集合相连的最小权边，逐步扩展 MST',
+    objects: [
+      ...mkNodes({}),
+      ...allEdges.map(e => ({ ...e, color: '#06b6d4' })),
+    ],
     codeLine: 5,
-    objects: Array.from({ length: N }, (_, i) =>
-      mkBar(`np${i}`, 0, i, '#06b6d4', `节点${i}`)
-    ),
+    description: '【Prim 策略】从节点 0 开始，每次选与已选集合相连的最小权边',
   }
 
   {
     const INF = 999
-    const key: number[] = Array(N).fill(INF)
-    const visited: boolean[] = Array(N).fill(false)
+    const key: number[] = Array(n).fill(INF)
+    const visited: boolean[] = Array(n).fill(false)
+    const primMST = new Set<string>()
     key[0] = 0
     let pWeight = 0
 
-    for (let iter = 0; iter < N; iter++) {
-      let u = -1
-      let minKey = INF
-      for (let i = 0; i < N; i++) {
-        if (!visited[i] && key[i] < minKey) {
-          u = i; minKey = key[i]
-        }
-      }
+    for (let iter = 0; iter < n; iter++) {
+      let u = -1, minKey = INF
+      for (let i = 0; i < n; i++) { if (!visited[i] && key[i] < minKey) { u = i; minKey = key[i] } }
       if (u === -1) break
 
       visited[u] = true
       if (iter > 0) pWeight += key[u]
 
       yield {
-        description: `[Prim 第 ${iter + 1} 步] 选中节点 ${u}（key = ${key[u] === 0 ? '0(起点)' : key[u]}），加入 MST`,
+        objects: [
+          ...mkNodes(Object.fromEntries(Array.from({ length: n }, (_, i) => visited[i] ? [i, COLORS.comparing] : [i, null]).filter(([, v]) => v !== null) as [number, string][])),
+          ...allEdges.map(e => {
+            const f = parseInt(e.from.slice(2)), t = parseInt(e.to.slice(2))
+            return primMST.has(`${f}-${t}`) ? { ...e, color: '#06b6d4' } : e
+          }),
+        ],
         codeLine: 6,
-        objects: Array.from({ length: N }, (_, i) =>
-          mkBar(`np${i}`, key[i] === INF ? 0 : key[i] * 2, i,
-            visited[i] ? '#06b6d4' : '#6b7280', `节点${i}`)
-        ),
+        description: `[Prim] 选中节点 ${u}${iter === 0 ? '（起点）' : `（key=${key[u]}）`}`,
       }
 
       for (const [v, w] of adj[u]) {
         if (!visited[v] && w < key[v]) {
           key[v] = w
+          const ek = u < v ? `${u}-${v}` : `${v}-${u}`
+          primMST.add(`${u}-${v}`)
+          primMST.add(`${v}-${u}`)
 
           yield {
-            description: `[Prim] 更新节点 ${v} 的 key = ${w}（通过边 (${u}, ${v})）`,
+            objects: [
+              ...mkNodes({ [u]: COLORS.comparing, [v]: COLORS.highlight }),
+              ...allEdges.map(e => {
+                const f = parseInt(e.from.slice(2)), t = parseInt(e.to.slice(2))
+                if (primMST.has(`${f}-${t}`)) return { ...e, color: '#06b6d4' }
+                return (e.from === `n-${u}` && e.to === `n-${v}`) || (e.from === `n-${v}` && e.to === `n-${u}`)
+                  ? { ...e, color: COLORS.highlight }
+                  : e
+              }),
+            ],
             codeLine: 6,
-            objects: Array.from({ length: N }, (_, i) =>
-              mkBar(`np${i}`, key[i] === INF ? 0 : key[i] * 2, i,
-                i === v ? '#f59e0b' : visited[i] ? '#06b6d4' : '#6b7280',
-                `节点${i}`)
-            ),
+            description: `[Prim] 更新节点 ${v} 的 key = ${w}`,
           }
         }
       }
     }
 
     yield {
-      description: `[Prim 完成] MST 总权重 = ${pWeight}`,
+      objects: [
+        ...mkNodes(Object.fromEntries(Array.from({ length: n }, (_, i) => [i, COLORS.sorted]))),
+        ...allEdges.map(e => {
+          const f = parseInt(e.from.slice(2)), t = parseInt(e.to.slice(2))
+          return primMST.has(`${f}-${t}`) ? { ...e, color: '#06b6d4' } : { ...e, color: '#e2e8f0' }
+        }),
+      ],
       codeLine: 7,
-      objects: Array.from({ length: N }, (_, i) =>
-        mkBar(`np${i}`, 1, i, '#06b6d4', `节点${i}`)
-      ),
+      description: `[Prim 完成] MST 总权重=${pWeight}`,
     }
   }
 
-  // ============ 对比 ============
   yield {
-    description: '【对比总结】Kruskal 以边为中心，适合稀疏图；Prim 以顶点为中心，适合稠密图。两者都保证了 MST 的最小权性质',
+    objects: [
+      ...mkNodes(Object.fromEntries(Array.from({ length: n }, (_, i) => [i, COLORS.sorted]))),
+      ...allEdges.map(e => ({ ...e, color: COLORS.sorted })),
+    ],
     codeLine: 8,
-    objects: Array.from({ length: N }, (_, i) =>
-      mkBar(`c${i}`, i + 1, i, '#10b981', `节点${i}`)
-    ),
+    description: '【总结】Kruskal 以边为中心，适合稀疏图；Prim 以顶点为中心，适合稠密图',
   }
 }

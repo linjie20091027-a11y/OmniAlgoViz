@@ -1,113 +1,135 @@
-import { Scene, BarObject, COLORS } from '@vsa/shared'
+import { COLORS, type Scene, type GraphNodeObject, type GraphEdgeObject } from '@vsa/shared'
 
-function mkBar(id: string, value: number, index: number, color: string, label?: string): BarObject {
-  return { kind: 'bar', id, value, index, color, label }
-}
+export default function* eulerPathGenerator(params: { size: number }): Generator<Scene> {
+  const n = Math.min(params.size, 8)
+  const adj: number[][] = Array.from({ length: n }, () => [])
 
-export default function* generate(): Generator<Scene> {
-  const size = 5
-  // 无向图邻接表（存在欧拉回路）
-  const graph: number[][] = [
-    [1, 2, 3],
-    [0, 2],
-    [0, 1, 3, 4],
-    [0, 2, 4],
-    [2, 3],
-  ]
-
-  let degree: number[] = graph.map(adj => adj.length)
-
-  yield {
-    description: '初始化：计算每个节点的度数。欧拉路径存在条件：最多 2 个奇数度节点',
-    codeLine: 1,
-    objects: degree.map((d, i) =>
-      mkBar(`n${i}`, d * 3, i, '#3b82f6',
-        d % 2 === 0 ? `节点${i}(偶:${d})` : `节点${i}(奇:${d})`)
-    ),
+  for (let i = 1; i < n; i++) {
+    const parent = Math.floor(Math.random() * i)
+    adj[parent].push(i)
+    adj[i].push(parent)
+  }
+  for (let i = 0; i < Math.floor(n * 1.2); i++) {
+    const u = Math.floor(Math.random() * n)
+    const v = Math.floor(Math.random() * n)
+    if (u !== v && !adj[u].includes(v)) {
+      adj[u].push(v)
+      adj[v].push(u)
+    }
   }
 
+  const edgeSet = new Set<string>()
+  const allEdges: GraphEdgeObject[] = []
+  for (let u = 0; u < n; u++) {
+    for (const v of adj[u]) {
+      const key = u < v ? `${u}-${v}` : `${v}-${u}`
+      if (!edgeSet.has(key)) {
+        edgeSet.add(key)
+        allEdges.push({
+          kind: 'graphEdge', id: `e-${u}-${v}`, from: `n-${u}`, to: `n-${v}`,
+          weight: 1, directed: false, color: '#cbd5e1',
+        })
+      }
+    }
+  }
+
+  const degree = adj.map(a => a.length)
   const oddNodes = degree.map((d, i) => d % 2 !== 0 ? i : -1).filter(i => i !== -1)
+
+  function mkNodes(states: Record<number, string>): GraphNodeObject[] {
+    return Array.from({ length: n }, (_, i) => ({
+      kind: 'graphNode' as const,
+      id: `n-${i}`,
+      label: `${i}(度${degree[i]})`,
+      color: states[i] || (oddNodes.includes(i) ? '#f59e0b' : COLORS.default),
+    }))
+  }
+
+  yield {
+    objects: [...mkNodes({}), ...allEdges],
+    codeLine: 1,
+    description: `计算度数：奇数度节点=${oddNodes.length} 个${oddNodes.length > 2 ? '（>2，无欧拉路径）' : ''}`,
+  }
 
   if (oddNodes.length > 2) {
     yield {
-      description: `奇数度节点数 = ${oddNodes.length} > 2，不存在欧拉路径！`,
+      objects: [
+        ...mkNodes(Object.fromEntries(oddNodes.map(o => [o, COLORS.swapping]))),
+        ...allEdges,
+      ],
       codeLine: 2,
-      objects: degree.map((d, i) =>
-        mkBar(`n${i}`, d * 3, i,
-          d % 2 !== 0 ? '#ef4444' : '#10b981', `节点${i}`)
-      ),
+      description: `奇数度节点 ${oddNodes.length} > 2，不存在欧拉路径！`,
     }
   } else {
-    yield {
-      description: `奇数度节点数 = ${oddNodes.length} ≤ 2，${oddNodes.length === 0 ? '存在欧拉回路' : `存在欧拉路径（以节点 ${oddNodes[0]} 为起点）`}`,
-      codeLine: 2,
-      objects: degree.map((d, i) =>
-        mkBar(`n${i}`, d * 3, i,
-          d % 2 !== 0 ? '#f59e0b' : '#10b981', `节点${i}`)
-      ),
-    }
-
-    // Hierholzer 算法
     const start = oddNodes.length > 0 ? oddNodes[0] : 0
-    const adjCopy: number[][] = graph.map(adj => [...adj])
-    const path: number[] = []
-    const stack: number[] = [start]
 
     yield {
-      description: `Hierholzer 算法开始：从节点 ${start} 出发。当前栈：[${start}]`,
-      codeLine: 3,
-      objects: degree.map((d, i) =>
-        mkBar(`n${i}`, d * 3, i,
-          i === start ? '#ef4444' : d % 2 !== 0 ? '#f59e0b' : '#10b981', `节点${i}`)
-      ),
+      objects: [
+        ...mkNodes({ [start]: COLORS.highlight }),
+        ...allEdges,
+      ],
+      codeLine: 2,
+      description: `${oddNodes.length === 0 ? '存在欧拉回路' : `存在欧拉路径，起点=${start}`}，开始 Hierholzer`,
     }
+
+    const adjCopy: number[][] = adj.map(a => [...a])
+    const stack: number[] = [start]
+    const path: number[] = []
+    const removedEdges = new Set<string>()
 
     while (stack.length > 0) {
       const u = stack[stack.length - 1]
 
       if (adjCopy[u].length > 0) {
         const v = adjCopy[u].pop()!
-        // 从 v 的邻接表中移除 u
         const vi = adjCopy[v].indexOf(u)
         if (vi !== -1) adjCopy[v].splice(vi, 1)
-
+        removedEdges.add(`${u}-${v}`)
+        removedEdges.add(`${v}-${u}`)
         stack.push(v)
 
-        const remainingDeg = adjCopy.map(a => a.length)
-
         yield {
-          description: `从节点 ${u} 走到节点 ${v}，入栈。边 (${u}, ${v}) 已删除。栈：[${stack.join(', ')}]`,
-          codeLine: 4,
-          objects: remainingDeg.map((d, i) =>
-            mkBar(`n${i}`, d * 3, i,
-              i === v ? '#ef4444' : stack.includes(i) ? '#3b82f6' : '#6b7280',
-              `节点${i}(剩${d}边)`)
-          ),
+          objects: [
+            ...mkNodes({ [u]: COLORS.comparing, [v]: COLORS.highlight, ...Object.fromEntries(stack.map(s => [s, COLORS.pivot])) }),
+            ...allEdges.map(e => {
+              const f = parseInt(e.from.slice(2)), t = parseInt(e.to.slice(2))
+              return removedEdges.has(`${f}-${t}`) ? { ...e, color: COLORS.inactive } : e
+            }),
+          ],
+          codeLine: 3,
+          description: `从 ${u} 走到 ${v}，边已删除。栈：[${stack.join(', ')}]`,
         }
       } else {
         const w = stack.pop()!
         path.push(w)
 
-        const remainingDeg = adjCopy.map(a => a.length)
-
         yield {
-          description: `节点 ${u} 无边可走，出栈并加入路径 → [${path.join(', ')}]`,
-          codeLine: 5,
-          objects: remainingDeg.map((d, i) =>
-            mkBar(`n${i}`, d * 3, i,
-              path.includes(i) ? '#10b981' : stack.includes(i) ? '#3b82f6' : '#6b7280',
-              `节点${i}`)
-          ),
+          objects: [
+            ...mkNodes(Object.fromEntries([
+              ...path.map(p => [p, COLORS.sorted] as const),
+              ...stack.map(s => [s, COLORS.pivot] as const),
+            ])),
+            ...allEdges.map(e => {
+              const f = parseInt(e.from.slice(2)), t = parseInt(e.to.slice(2))
+              return removedEdges.has(`${f}-${t}`) ? { ...e, color: COLORS.inactive } : e
+            }),
+          ],
+          codeLine: 4,
+          description: `节点 ${u} 无边可走，出栈加入路径 → [${path.join(', ')}]`,
         }
       }
     }
 
     yield {
-      description: `Hierholzer 算法完成！欧拉路径/回路：[${path.join(' → ')}]`,
-      codeLine: 6,
-      objects: path.map((node, i) =>
-        mkBar(`p${i}`, node + 1, i, '#10b981', `第${i + 1}步:${node}`)
-      ),
+      objects: [
+        ...mkNodes(Object.fromEntries(path.map(p => [p, COLORS.sorted]))),
+        ...allEdges.map(e => {
+          const f = parseInt(e.from.slice(2)), t = parseInt(e.to.slice(2))
+          return removedEdges.has(`${f}-${t}`) ? { ...e, color: COLORS.inactive } : e
+        }),
+      ],
+      codeLine: 5,
+      description: `Hierholzer 完成！欧拉路径：[${path.join(' → ')}]`,
     }
   }
 }
