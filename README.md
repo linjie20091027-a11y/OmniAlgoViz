@@ -1,182 +1,283 @@
-# OmniAlgoViz —— 信息竞赛算法可视化平台
+# OmniAlgoViz —— 算法可视化学习平台 / Algorithm Visualization Platform
 
-> **Omni**（全）+ **Algo**（Algorithm）+ **Viz**（Visualization）
-> 
-> 覆盖 CSP / NOIP / NOI / IOI 等信息学竞赛的核心算法，交互式可视化学习平台。
+> **Omni**（全/All）+ **Algo**（Algorithm）+ **Viz**（Visualization）
+>
+> 覆盖 CSP / NOIP / NOI / IOI 信息学竞赛核心算法 | 82 algorithms · 9 categories · 5 visualization engines
+>
+> **Live Demo**: [omnialgoviz.up.railway.app](https://omnialgoviz.up.railway.app)
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18-61dafb)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-5-646cff)](https://vitejs.dev/)
 [![pnpm](https://img.shields.io/badge/pnpm-monorepo-orange)](https://pnpm.io/)
+[![Live](https://img.shields.io/badge/Live-omnialgoviz.up.railway.app-0B0D0E)](https://omnialgoviz.up.railway.app)
 
 ---
 
-## 特性
+## 特性 / Features
 
-- **5 种可视化引擎**——柱状图（数组）、树形图（BST/堆/线段树/Trie）、链表图（栈/队列/哈希链）、二维网格（DP表）、坐标点（几何）
-- **Python + C++ 双代码**——每个算法同时提供两种语言的实现，支持实时行号同步高亮
-- **逐步演示**——播放/暂停/步进/调速，每步有详细中文说明
-- **算法注册系统**——`import.meta.glob` 自动扫描，添加新算法零路由配置
-- **玻璃质感 UI**——毛玻璃白色主题，响应式布局
-
----
-
-## 已实现算法（27 个）
-
-### 排序算法（9）
-
-| 算法 | ID | 复杂度 |
-|------|-----|--------|
-| 冒泡排序 | `bubble-sort` | O(n²) |
-| 选择排序 | `selection-sort` | O(n²) |
-| 插入排序 | `insertion-sort` | O(n²) |
-| 归并排序 | `merge-sort` | O(n log n) |
-| 快速排序 | `quick-sort` | O(n log n) |
-| 堆排序 | `heap-sort` | O(n log n) |
-| 希尔排序 | `shell-sort` | O(n log n) ~ O(n²) |
-| 计数排序 | `counting-sort` | O(n + k) |
-| 基数排序 | `radix-sort` | O(d·(n + k)) |
-
-### 数据结构（12）
-
-| 算法 | ID | 可视化 | 复杂度 |
-|------|-----|--------|--------|
-| 栈 | `stack` | 链表 | O(1) |
-| 队列 | `queue` | 链表 | O(1) |
-| 单调栈 | `monotonic-stack` | 链表 | O(n) |
-| 链表 | `linked-list` | 链表 | O(1) / O(n) |
-| 哈希表 | `hash-table` | 链表（链地址法） | O(1) avg |
-| 二叉堆 | `binary-heap` | 树形 | O(log n) |
-| 并查集 | `disjoint-set` | 树形 | O(α(n)) |
-| 二叉搜索树 | `bst` | 树形 | O(log n) avg |
-| 树状数组 | `fenwick-tree` | 树形 | O(log n) |
-| 线段树 | `segment-tree` | 树形 | O(log n) |
-| 字典树 | `trie` | 树形 | O(L) |
-| 优先队列 | `priority-queue` | 树形 | O(log n) |
-
-### 基础算法（6）
-
-| 算法 | ID | 复杂度 |
-|------|-----|--------|
-| 二分查找 | `binary-search` | O(log n) |
-| 三分查找 | `ternary-search` | O(log n) |
-| 前缀和 | `prefix-sum` | O(n) |
-| 双指针 | `two-pointer` | O(n) |
-| 滑动窗口 | `sliding-window` | O(n) |
-| 离散化 | `discretization` | O(n log n) |
+- **5 种可视化引擎 / 5 Visualization Engines**——柱状图 Bar（数组 Array）、树形图 Tree（BST/堆 Heap/线段树 SegTree/Trie）、链表图 List（栈 Stack/队列 Queue/哈希链 Hash Chain）、二维网格 Grid（DP 表）、坐标点 Point（几何 Geometry）
+- **Python + C++ 双代码 / Dual Code Support**——每个算法同时提供两种语言实现，Shiki 行号同步高亮 / Each algorithm includes Python & C++ with real-time line-sync highlighting
+- **逐步演示 / Step-by-Step Playback**——播放 ▶ / 暂停 ⏸ / 步进 ⏭ / 调速 ⏩，每步有详细中文说明 / Play, pause, step, speed control with detailed descriptions
+- **算法注册系统 / Auto-Registry**——`import.meta.glob` 自动扫描，添加新算法零路由配置 / Auto-discover algorithms, zero routing config
+- **玻璃质感 UI / Glassmorphism UI**——浅色/暗色双模式 / Light & dark mode with glassmorphism effects
+- **生产级安全 / Production Security**——Helmet CSP + CORS + Rate Limiting
 
 ---
 
-## 技术架构
+## 已实现算法 / Implemented Algorithms （82 个）
+
+### 排序算法 / Sorting（9）
+
+| 算法 Algorithm | ID | 复杂度 Complexity |
+|---|---|---|
+| 冒泡排序 Bubble Sort | `bubble-sort` | O(n²) |
+| 选择排序 Selection Sort | `selection-sort` | O(n²) |
+| 插入排序 Insertion Sort | `insertion-sort` | O(n²) |
+| 归并排序 Merge Sort | `merge-sort` | O(n log n) |
+| 快速排序 Quick Sort | `quick-sort` | O(n log n) |
+| 堆排序 Heap Sort | `heap-sort` | O(n log n) |
+| 希尔排序 Shell Sort | `shell-sort` | O(n log n) ~ O(n²) |
+| 计数排序 Counting Sort | `counting-sort` | O(n + k) |
+| 基数排序 Radix Sort | `radix-sort` | O(d·(n + k)) |
+
+### 数据结构 / Data Structures（12）
+
+| 算法 Algorithm | ID | 可视化 Viz | 复杂度 Complexity |
+|---|---|---|---|
+| 栈 Stack | `stack` | list | O(1) |
+| 队列 Queue | `queue` | list | O(1) |
+| 单调栈 Monotonic Stack | `monotonic-stack` | list | O(n) |
+| 链表 Linked List | `linked-list` | list | O(1)/O(n) |
+| 哈希表 Hash Table | `hash-table` | list (chaining) | O(1) avg |
+| 二叉堆 Binary Heap | `binary-heap` | tree | O(log n) |
+| 并查集 DSU | `disjoint-set` | tree | O(α(n)) |
+| 二叉搜索树 BST | `bst` | tree | O(log n) avg |
+| 树状数组 Fenwick Tree | `fenwick-tree` | tree | O(log n) |
+| 线段树 Segment Tree | `segment-tree` | tree | O(log n) |
+| 字典树 Trie | `trie` | tree | O(L) |
+| 优先队列 Priority Queue | `priority-queue` | tree | O(log n) |
+
+### 基础算法 / Fundamentals（6）
+
+| 算法 Algorithm | ID | 复杂度 Complexity |
+|---|---|---|
+| 二分查找 Binary Search | `binary-search` | O(log n) |
+| 三分查找 Ternary Search | `ternary-search` | O(log n) |
+| 前缀和 Prefix Sum | `prefix-sum` | O(n) |
+| 双指针 Two Pointers | `two-pointer` | O(n) |
+| 滑动窗口 Sliding Window | `sliding-window` | O(n) |
+| 离散化 Discretization | `discretization` | O(n log n) |
+
+### 图论算法 / Graph Theory（16）
+
+| 算法 Algorithm | ID | 复杂度 Complexity |
+|---|---|---|
+| BFS 广度优先搜索 | `bfs` | O(V+E) |
+| DFS 深度优先搜索 | `dfs` | O(V+E) |
+| Dijkstra 最短路径 | `dijkstra` | O((V+E)log V) |
+| Bellman-Ford 最短路径 | `bellman-ford` | O(VE) |
+| Floyd-Warshall 全源最短路径 | `floyd` | O(V³) |
+| Kruskal 最小生成树 | `kruskal` | O(E log E) |
+| Prim 最小生成树 | `prim` | O(E log V) |
+| 拓扑排序 Topological Sort | `topological-sort` | O(V+E) |
+| Tarjan 强连通分量 | `tarjan-scc` | O(V+E) |
+| 二分图判定 Bipartite Check | `bipartite-check` | O(V+E) |
+| 匈牙利算法 Hungarian | `hungarian` | O(VE) |
+| SPFA 最短路径 | `spfa` | O(VE)* |
+| Dinic 最大流 | `dinic` | O(V²E) |
+| 最小生成树比较 MST Comparison | `mst` | O(E log E) |
+| 欧拉路径 Euler Path | `euler-path` | O(V+E) |
+| 哈密顿路径 Hamiltonian | `hamiltonian` | O(V!) |
+
+### 动态规划 / Dynamic Programming（10）
+
+| 算法 Algorithm | ID | 复杂度 Complexity |
+|---|---|---|
+| 01 背包 0/1 Knapsack | `knapsack-01` | O(nW) |
+| 最长公共子序列 LCS | `LCS` | O(nm) |
+| 最长上升子序列 LIS | `LIS` | O(n log n) |
+| 零钱兑换 Coin Change | `coin-change` | O(n·amount) |
+| 编辑距离 Edit Distance | `edit-distance` | O(nm) |
+| 最大子数组和 Max Subarray | `max-subarray` | O(n) |
+| 矩阵链乘 Matrix Chain | `matrix-chain` | O(n³) |
+| 石子合并 Stone Merge | `stone-merge` | O(n³) |
+| 数位 DP Digit DP | `digit-dp` | O(log n) |
+| 状压 DP / TSP State Compression | `state-compression` | O(2^n·n²) |
+
+### 数学 / 数论 / Mathematics（10）
+
+| 算法 Algorithm | ID | 复杂度 Complexity |
+|---|---|---|
+| 埃氏筛法 Sieve of Eratosthenes | `sieve` | O(n log log n) |
+| 欧几里得算法 Euclidean GCD | `gcd` | O(log n) |
+| 快速幂 Fast Exponentiation | `fast-pow` | O(log n) |
+| 乘法逆元 Modular Inverse | `modular-inverse` | O(log mod) |
+| 中国剩余定理 CRT | `CRT` | O(n log M) |
+| 快速乘 Russian Peasant Multiplication | `quick-mul` | O(log n) |
+| 卡特兰数 Catalan Numbers | `catalan` | O(n²) |
+| Nim 博弈 Nim Game | `nim-game` | O(n) |
+| Miller-Rabin 素性测试 | `prime-test` | O(k log³ n) |
+| 组合数 Pascal's Triangle | `combination-num` | O(n²) |
+
+### 字符串算法 / String（8）
+
+| 算法 Algorithm | ID | 复杂度 Complexity |
+|---|---|---|
+| KMP 字符串匹配 | `kmp` | O(n+m) |
+| Manacher 最长回文子串 | `manacher` | O(n) |
+| Rabin-Karp 字符串匹配 | `rabin-karp` | O(n+m) avg |
+| Z 函数 Z-Algorithm | `z-algorithm` | O(n) |
+| AC 自动机 Aho-Corasick | `ac-automaton` | O(n+m+z) |
+| 后缀数组 Suffix Array | `suffix-array` | O(n log n) |
+| 最小表示法 Minimum Notation | `minimum-notation` | O(n) |
+| 字符串哈希 String Hashing | `string-hash` | O(n) / O(1) |
+
+### 搜索算法 / Search（6）
+
+| 算法 Algorithm | ID | 复杂度 Complexity |
+|---|---|---|
+| BFS 搜索 BFS Search | `bfs-search` | O(b^d) |
+| DFS 搜索 DFS Search | `dfs-search` | O(b^d) |
+| A\* 启发式搜索 A-Star | `a-star` | O(E) |
+| IDA\* 迭代加深 | `ida-star` | O(b^d) |
+| 双向 BFS Bidirectional BFS | `bidirectional-bfs` | O(b^(d/2)) |
+| Dancing Links / DLX | `dlx` | Exponential |
+
+### 计算几何 / Geometry（5）
+
+| 算法 Algorithm | ID | 复杂度 Complexity |
+|---|---|---|
+| Andrew 凸包 Convex Hull | `convex-hull` | O(n log n) |
+| 最近点对 Closest Pair | `closest-pair` | O(n log n) |
+| 线段相交 Line Intersection | `line-intersection` | O(1) |
+| 点在多边形内 Point in Polygon | `point-in-polygon` | O(n) |
+| Graham Scan 凸包 | `graham-scan` | O(n log n) |
+
+---
+
+## 技术架构 / Architecture
 
 ```
 visual-algo/
 ├── packages/
-│   ├── shared/          # 共享类型（Scene / SceneObject / AlgorithmMeta）
+│   ├── shared/          # 共享类型 Shared Types
 │   ├── frontend/        # React SPA
 │   │   └── src/
-│   │       ├── engine/      # 可视化引擎
-│   │       │   ├── bar-vis.tsx     # 柱状图渲染器
-│   │       │   ├── tree-vis.tsx    # 树形图渲染器
-│   │       │   ├── list-vis.tsx    # 链表图渲染器
-│   │       │   ├── grid-vis.tsx    # 网格渲染器
-│   │       │   ├── point-vis.tsx   # 坐标点渲染器
-│   │       │   ├── code-panel.tsx  # 代码面板（Shiki 高亮）
-│   │       │   └── player.tsx      # 统一播放器
-│   │       ├── registry/      # 算法注册（自动扫描）
-│   │       ├── algorithms/    # 算法数据库（按类别分目录）
-│   │       │   ├── sorting/        # 排序类
-│   │       │   ├── data-structure/ # 数据结构类
-│   │       │   └── fundamental/    # 基础算法类
-│   │       ├── layout/        # 玻璃质感布局
-│   │       └── pages/         # 路由页面
-│   └── backend/          # C++ 编译服务（规划中）
-├── Dockerfile            # 生产部署
-├── server.js             # Express 静态服务
+│   │       ├── engine/      # 可视化引擎 Visualization Engine
+│   │       │   ├── bar-vis.tsx     # 柱状图 Bar Renderer
+│   │       │   ├── tree-vis.tsx    # 树形图 Tree Renderer
+│   │       │   ├── list-vis.tsx    # 链表图 List Renderer
+│   │       │   ├── grid-vis.tsx    # 网格图 Grid Renderer
+│   │       │   ├── point-vis.tsx   # 坐标点 Point Renderer
+│   │       │   ├── code-panel.tsx  # 代码面板 Code Panel (Shiki)
+│   │       │   └── player.tsx      # 统一播放器 Unified Player
+│   │       ├── registry/      # 算法注册 Auto Registry
+│   │       ├── algorithms/    # 算法数据库 Algorithm Database
+│   │       │   ├── sorting/         # 排序
+│   │       │   ├── data-structure/  # 数据结构
+│   │       │   ├── fundamental/     # 基础算法
+│   │       │   ├── graph/           # 图论
+│   │       │   ├── dp/              # 动态规划
+│   │       │   ├── math/            # 数学
+│   │       │   ├── string/          # 字符串
+│   │       │   ├── search/          # 搜索
+│   │       │   └── geometry/        # 几何
+│   │       ├── layout/        # 布局 Layout
+│   │       └── pages/         # 路由 Routing
+│   └── backend/          # C++ 编译服务（规划中 / Planned）
+├── Dockerfile            # Docker 部署
+├── server.js             # Express 生产服务
 └── pnpm-workspace.yaml   # Monorepo 配置
 ```
 
-### 核心数据流
+### 核心数据流 / Core Data Flow
 
 ```
-用户参数 → StepGenerator() → Scene[] → Player Hook
+User Params → StepGenerator() → Scene[] → Player Hook
                              ↑
                     ┌────────┴────────┐
-                    ↓                 ↓
-              Visualizer        Code Panel
-           (Canvas 渲染)    (Shiki 行同步高亮)
+                    ↓                  ↓
+              Visualizer         Code Panel
+           (Canvas Render)   (Shiki Highlight)
 ```
 
-每个算法只需 4 个文件：
+Each algorithm requires only 4 files / 每个算法只需 4 个文件：
 
-| 文件 | 职责 |
-|------|------|
-| `meta.ts` | 元数据（名称、类别、复杂度、参数） |
-| `generator.ts` | 步骤生成器（Generator 函数，产出 Scene[]） |
-| `python.py` | Python 实现代码 |
-| `cpp.cpp` | C++ 实现代码 |
+| 文件 File | 职责 Purpose |
+|---|---|
+| `meta.ts` | 元数据（名称/类别/复杂度/参数）Metadata |
+| `generator.ts` | 步骤生成器 Step Generator（`function*` → `Scene[]`） |
+| `python.py` | Python 实现 Python Implementation |
+| `cpp.cpp` | C++ 实现 C++ Implementation |
 
 ---
 
-## 快速开始
+## 快速开始 / Quick Start
 
 ```bash
-# 安装依赖
+# 安装依赖 / Install
 pnpm install
 
-# 启动开发服务器
+# 开发模式 / Dev Server
 pnpm dev              # → http://localhost:5173
 
-# 构建生产版本
+# 构建 / Build
 pnpm build            # → packages/frontend/dist/
 
-# 生产模式预览
+# 生产预览 / Production Preview
 pnpm start            # → http://localhost:3000
 ```
 
-## Docker 部署
+## Docker 部署 / Docker Deployment
 
 ```bash
 docker build -t omnialgoviz .
 docker run -p 3000:3000 omnialgoviz
 ```
 
+## 在线演示 / Live Demo
+
+**[omnialgoviz.up.railway.app](https://omnialgoviz.up.railway.app)**
+
 ---
 
-## 添加新算法
+## 添加新算法 / Adding a New Algorithm
 
-1. 创建目录 `packages/frontend/src/algorithms/{category}/{algo-name}/`
-2. 写入 4 个文件：
-   - `meta.ts` — 算法元数据
-   - `generator.ts` — 步骤生成器（`function*`）
-   - `python.py` — Python 代码
-   - `cpp.cpp` — C++ 代码
-3. 注册系统自动发现，无需手动配置路由
+1. Create directory / 创建目录：`packages/frontend/src/algorithms/{category}/{algo-name}/`
+2. Write 4 files / 写入 4 个文件：
+3. Auto-discovered by registry / 注册系统自动发现，无需配置路由
 
 ```typescript
-// meta.ts 示例
+// meta.ts
 export default {
   id: 'my-algo',
-  title: '我的算法',
+  title: 'My Algorithm / 我的算法',
   category: 'sorting',
   visualizerType: 'bar',  // bar | tree | list | grid | point
   difficulty: 1,
-  params: [{ key: 'size', label: '数据量', type: 'number', default: 10, min: 3, max: 30 }],
+  params: [{ key: 'size', label: 'Size', type: 'number', default: 10, min: 3, max: 30 }],
   complexity: { time: 'O(n)', space: 'O(1)' },
 }
 ```
 
 ---
 
-## 路线图
+## 路线图 / Roadmap
 
-- [x] 排序算法（9 个）
-- [x] 数据结构（12 个）
-- [x] 基础算法（6 个）
-- [ ] 图论算法（BFS/DFS/Dijkstra/Floyd/Kruskal/Prim/网络流……）
-- [ ] 动态规划（背包/LCS/LIS/编辑距离/数位DP……）
-- [ ] 数学/数论（筛法/GCD/快速幂/CRT/博弈论……）
-- [ ] 字符串算法（KMP/Manacher/AC自动机/后缀数组……）
-- [ ] 搜索算法（DFS/BFS/A\*/IDA\*/双向搜索……）
-- [ ] 计算几何（凸包/最近点对/线段相交……）
-- [ ] C++/Python 在线编译运行后端
+- [x] 排序算法 / Sorting（9）
+- [x] 数据结构 / Data Structures（12）
+- [x] 基础算法 / Fundamentals（6）
+- [x] 图论算法 / Graph Theory（16）
+- [x] 动态规划 / Dynamic Programming（10）
+- [x] 数学/数论 / Mathematics（10）
+- [x] 字符串算法 / String（8）
+- [x] 搜索算法 / Search（6）
+- [x] 计算几何 / Geometry（5）
+- [ ] C++ / Python 在线编译运行后端 / Online Compiler Backend
+
+---
+
+## 许可 / License
+
+MIT
