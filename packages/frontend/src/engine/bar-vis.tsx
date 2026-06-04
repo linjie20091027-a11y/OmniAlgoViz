@@ -1,4 +1,4 @@
-import { useMemo, useRef, useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, memo } from 'react'
 import type { Scene, BarObject } from '@vsa/shared'
 
 interface Props { scene: Scene }
@@ -14,75 +14,71 @@ export default function BarVisualizer({ scene }: Props) {
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const ro = new ResizeObserver(([e]) => {
-      setDims({ w: e.contentRect.width, h: e.contentRect.height })
-    })
+    const update = () => setDims({ w: el.clientWidth, h: el.clientHeight })
+    update()
+    const ro = new ResizeObserver(update)
     ro.observe(el)
-    setDims({ w: el.clientWidth, h: el.clientHeight })
     return () => ro.disconnect()
   }, [])
 
   const w = dims.w
   const h = dims.h
   const n = bars.length
-  const padding = 32
+  const padding = 28
 
   if (n === 0 || w === 0) {
     return <div ref={containerRef} className="w-full h-full" />
   }
 
   const availW = w - padding * 2
-  const availH = h - padding * 2 - 50
-  const barGap = 4
+  const availH = h - padding * 2 - 52
+  const barGap = 3
   const totalGap = (n - 1) * barGap
-  const barWidth = Math.min((availW - totalGap) / n, 60)
+  const barWidth = Math.min((availW - totalGap) / n, 56)
   const maxVal = Math.max(...bars.map(b => b.value), 1)
   const startX = (w - (barWidth * n + totalGap)) / 2
 
   return (
     <div ref={containerRef} className="w-full h-full overflow-hidden">
       {bars.map((bar, i) => {
-        const barHeight = Math.max((bar.value / maxVal) * availH, 4)
+        const barH = Math.max((bar.value / maxVal) * availH, 3)
         const x = startX + i * (barWidth + barGap)
-        const y = h - padding - barHeight - 40
-        const isHighlight = scene.highlights?.includes(bar.id)
+        const y = h - padding - barH - 40
+        const hi = scene.highlights?.includes(bar.id)
 
         return (
-          <div key={bar.id} className="absolute" style={{ left: x, top: y }}>
-            {/* 数值标签 */}
+          <div key={bar.id} className="absolute will-change-transform" style={{ left: x, top: y }}>
             <div
-              className="absolute text-center font-mono transition-all duration-300"
+              className="absolute text-center font-mono transition-all duration-300 pointer-events-none select-none"
               style={{
                 width: barWidth,
-                bottom: barHeight + 4,
-                fontSize: Math.min(barWidth * 0.7, 12),
+                bottom: barH + 4,
+                fontSize: Math.max(10, Math.min(barWidth * 0.65, 12)),
                 color: '#64748b',
-                lineHeight: 1,
+                lineHeight: 1.1,
               }}
             >
               {bar.value}
             </div>
 
-            {/* 柱子 */}
             <div
-              className="rounded-t-lg transition-all duration-300 ease-out"
+              className="rounded-t-md transition-all duration-300 ease-out"
               style={{
                 width: barWidth,
-                height: barHeight,
+                height: barH,
                 background: bar.color,
-                boxShadow: isHighlight
-                  ? '0 0 12px rgba(251, 191, 36, 0.5), inset 0 0 0 2px rgba(251, 191, 36, 0.8)'
-                  : '0 2px 4px rgba(0,0,0,0.06)',
+                boxShadow: hi
+                  ? '0 0 10px rgba(251,191,36,0.45), inset 0 0 0 2px rgba(251,191,36,0.7)'
+                  : '0 1px 3px rgba(0,0,0,0.04)',
               }}
             />
 
-            {/* 索引标签 */}
             <div
-              className="absolute text-center transition-all duration-300"
+              className="absolute text-center transition-all duration-300 pointer-events-none select-none"
               style={{
                 width: barWidth,
-                top: barHeight + 6,
-                fontSize: 10,
+                top: barH + 5,
+                fontSize: 9,
                 color: '#94a3b8',
                 lineHeight: 1,
               }}

@@ -4,7 +4,7 @@
 
 /* ──── 全局基础 ──── */
 
-* {
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -17,46 +17,63 @@ body {
   min-height: 100vh;
   color: #1e293b;
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+.dark body {
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 40%, #1e293b 70%, #0f172a 100%);
 }
 
 #root {
   min-height: 100vh;
 }
 
-/* ──── 玻璃质感工具类 ──── */
+/* ──── 三层玻璃质感系统 ──── */
 
 @layer components {
-  .glass {
-    background: rgba(255, 255, 255, 0.60);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.70);
-  }
-
-  .glass-strong {
-    background: rgba(255, 255, 255, 0.80);
-    backdrop-filter: blur(24px) saturate(200%);
-    -webkit-backdrop-filter: blur(24px) saturate(200%);
-    border: 1px solid rgba(255, 255, 255, 0.90);
-  }
-
+  /* 第一层：最透明，8% 背景 */
   .glass-light {
-    background: rgba(255, 255, 255, 0.35);
-    backdrop-filter: blur(12px) saturate(150%);
-    -webkit-backdrop-filter: blur(12px) saturate(150%);
-    border: 1px solid rgba(255, 255, 255, 0.50);
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
 
+  /* 第二层：悬浮卡片，15% 背景 */
   .glass-elevated {
-    background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.80);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.04);
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.04),
+      0 2px 8px rgba(0, 0, 0, 0.02),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
+
+  /* 第三层：最厚实，25% 背景 */
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.06),
+      0 2px 8px rgba(0, 0, 0, 0.03),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  /* 兼容旧 glass 类 */
+  .glass {
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.35);
   }
 
   .glass-border {
-    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-color: rgba(255, 255, 255, 0.25);
   }
 
   .glass-divider {
@@ -64,38 +81,50 @@ body {
     height: 1px;
   }
 
-  /* ──── 暗色模式覆盖 ──── */
-
-  .dark .glass {
-    background: rgba(30, 41, 59, 0.60);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  .dark .glass-strong {
-    background: rgba(30, 41, 59, 0.80);
-    backdrop-filter: blur(24px) saturate(200%);
-    -webkit-backdrop-filter: blur(24px) saturate(200%);
-    border-color: rgba(255, 255, 255, 0.12);
-  }
+  /* ──── 暗色模式：冰晶蓝灰调 ──── */
 
   .dark .glass-light {
-    background: rgba(30, 41, 59, 0.45);
-    backdrop-filter: blur(12px) saturate(150%);
-    -webkit-backdrop-filter: blur(12px) saturate(150%);
-    border-color: rgba(255, 255, 255, 0.06);
+    background: rgba(30, 41, 59, 0.08);
+    backdrop-filter: blur(12px) saturate(120%);
+    -webkit-backdrop-filter: blur(12px) saturate(120%);
+    border-color: rgba(148, 163, 184, 0.08);
+    box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.08);
   }
 
   .dark .glass-elevated {
-    background: rgba(30, 41, 59, 0.75);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-color: rgba(255, 255, 255, 0.10);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
+    background: rgba(30, 41, 59, 0.15);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border-color: rgba(148, 163, 184, 0.12);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.2),
+      0 2px 8px rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(148, 163, 184, 0.1);
+  }
+
+  .dark .glass-strong {
+    background: rgba(30, 41, 59, 0.25);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border-color: rgba(148, 163, 184, 0.18);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.25),
+      0 2px 8px rgba(0, 0, 0, 0.12),
+      inset 0 1px 0 rgba(148, 163, 184, 0.12);
+  }
+
+  .dark .glass {
+    background: rgba(30, 41, 59, 0.12);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border-color: rgba(148, 163, 184, 0.1);
   }
 
   .dark .glass-border {
-    border-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(148, 163, 184, 0.08);
+  }
+
+  .dark .glass-divider {
+    background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.15), transparent);
   }
 }
